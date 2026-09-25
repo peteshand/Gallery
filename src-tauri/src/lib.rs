@@ -148,6 +148,7 @@ fn open_database(path: &Path) -> Result<Connection, String> {
                 .map_err(|error| error.to_string())?;
         }
     }
+    archive_import::prepare_sources(&connection)?;
     Ok(connection)
 }
 

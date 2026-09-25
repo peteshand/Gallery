@@ -202,16 +202,20 @@ fn source_records(db: &Connection, id: &str, item: &Item) -> Result<Vec<serde_js
         [], |_| Ok(true)).optional().map_err(|error| error.to_string())?.unwrap_or(false);
     let mut sources = Vec::new();
     if exists {
-        let mut statement = db.prepare("SELECT source_id,source_label,relative_path,takeout_json FROM import_sources
+        let mut statement = db.prepare("SELECT source_id,source_label,relative_path,takeout_json,metadata_version FROM import_sources
             WHERE asset_id=?1 ORDER BY source_label,relative_path").map_err(|error| error.to_string())?;
         let rows = statement.query_map(params![id], |row| Ok((
-            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?
+            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?, row.get::<_, i64>(4)?
         ))).map_err(|error| error.to_string())?;
         for row in rows {
-            let (source_id, label, path, takeout) = row.map_err(|error| error.to_string())?;
+            let (source_id, label, path, takeout, version) = row.map_err(|error| error.to_string())?;
+            if version < 1 { return Err("Scan all photo folders in Settings → Photos before backing up, so their Takeout metadata and folder paths are preserved.".into()); }
             sources.push(json!({"sourceId":source_id, "sourceLabel":label, "relativePath":path,
                 "takeout":takeout.and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())}));
         }
+    }
+    if sources.is_empty() && phone_media::source_media_id(&item.source_path).is_none() {
+        return Err("Scan all photo folders in Settings → Photos before backing up, so their Takeout metadata and folder paths are preserved.".into());
     }
     if sources.is_empty() && phone_media::source_media_id(&item.source_path).is_some() {
         sources.push(json!({"sourceLabel":item.collection, "relativePath":item.filename}));
@@ -313,6 +317,7 @@ async fn upload_one(db: &Connection, cache: &Path, client: &aws_sdk_s3::Client,
     config: &cloud::S3Config, id: &str, should_cancel: &dyn Fn() -> bool,
     app: Option<&AppHandle>) -> Result<bool, String> {
     let item = item(db, id)?;
+    let sources = source_records(db, id, &item)?;
     set_state(db, id, "preparing", None)?;
     if stop_if_requested(db, id, should_cancel)? { return Ok(false); }
     let staged = if let Some(media_id) = phone_media::source_media_id(&item.source_path) {
@@ -356,7 +361,6 @@ async fn upload_one(db: &Connection, cache: &Path, client: &aws_sdk_s3::Client,
     let (thumb_width, thumb_height) = image::image_dimensions(&thumbnail)
         .map_err(|_| "Could not measure thumbnail dimensions".to_string())?;
     if flags.3 == 0 {
-        let sources = source_records(db, id, &item)?;
         put_json(client, &config.bucket, &manifest_key, json!({
             "version": 3, "id": id, "filename": item.filename, "takenAt": item.taken_at,
             "sources": sources, "takeout": item.takeout,
@@ -434,7 +438,7 @@ async fn run_selected_with_cancel(database_path: &Path, cache: &Path, selected: 
             Ok(false) => break,
             Err(error) => {
                 set_state(&db, &id, "failed", Some(&error))?;
-                if error.starts_with("S3 ") { break; }
+                if error.starts_with("S3 ") || error.starts_with("Scan all photo folders") { break; }
             }
         }
     }
@@ -587,6 +591,30 @@ mod tests {
         prepare_schema(&db).unwrap();
         let pending: i64 = db.query_row("SELECT COUNT(*) FROM sync_items WHERE state='not_synced'", [], |row| row.get(0)).unwrap();
         assert_eq!(pending, 1);
+    }
+
+    #[test]
+    fn old_import_source_schema_upgrades_before_backup() {
+        let root = std::env::temp_dir().join(format!("gallery-source-schema-{}",std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("gallery.sqlite");
+        let legacy = Connection::open(&path).unwrap();
+        legacy.execute_batch("CREATE TABLE import_sources (
+            path TEXT PRIMARY KEY, bytes INTEGER NOT NULL, modified_ns INTEGER NOT NULL,
+            asset_id TEXT NOT NULL);
+            INSERT INTO import_sources VALUES ('C:/Photos/one.jpg',100,1,'asset');").unwrap();
+        drop(legacy);
+        let db = open_database(&path).unwrap();
+        db.execute("INSERT INTO assets(id,filename,source_path,preview_path,taken_at,collection)
+            VALUES ('asset','one.jpg','C:/Photos/one.jpg','','2020-01-01','Photos')",[]).unwrap();
+        let photo = item(&db,"asset").unwrap();
+        assert!(source_records(&db,"asset",&photo).unwrap_err().contains("Scan all photo folders"));
+        db.execute("UPDATE import_sources SET source_id='root',source_label='Photos',
+            relative_path='one.jpg',metadata_version=1 WHERE asset_id='asset'",[]).unwrap();
+        let sources = source_records(&db,"asset",&photo).unwrap();
+        assert_eq!(sources[0]["relativePath"],"one.jpg");
+        drop(db);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

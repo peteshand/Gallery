@@ -77,10 +77,7 @@ impl ImportRunner {
     }
 }
 
-pub fn import_archive(source: &Path, cache: &Path, database_path: &Path, runner: &ImportRunner) -> Result<ImportResult, String> {
-    if !source.is_dir() { return Err(format!("Import source is missing: {}", source.display())); }
-    fs::create_dir_all(cache).map_err(|error| error.to_string())?;
-    let db = open_database(database_path)?;
+pub(crate) fn prepare_sources(db: &rusqlite::Connection) -> Result<(), String> {
     db.execute_batch("CREATE TABLE IF NOT EXISTS import_sources (
         path TEXT PRIMARY KEY, bytes INTEGER NOT NULL, modified_ns INTEGER NOT NULL, asset_id TEXT NOT NULL,
         source_id TEXT NOT NULL DEFAULT '', source_label TEXT NOT NULL DEFAULT '', relative_path TEXT NOT NULL DEFAULT '',
@@ -98,6 +95,13 @@ pub fn import_archive(source: &Path, cache: &Path, database_path: &Path, runner:
                 .map_err(|error| error.to_string())?;
         }
     }
+    Ok(())
+}
+
+pub fn import_archive(source: &Path, cache: &Path, database_path: &Path, runner: &ImportRunner) -> Result<ImportResult, String> {
+    if !source.is_dir() { return Err(format!("Import source is missing: {}", source.display())); }
+    fs::create_dir_all(cache).map_err(|error| error.to_string())?;
+    let db = open_database(database_path)?;
     let mut result = ImportResult { scanned:0, added:0, existing:0, errors:Vec::new() };
     let mut directories = vec![source.to_path_buf()];
     while let Some(directory) = directories.pop() {
