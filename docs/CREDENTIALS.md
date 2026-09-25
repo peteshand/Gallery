@@ -1,6 +1,6 @@
 # S3 connection settings
 
-The native app has a **Settings → Cloud storage** form. Windows saves the access key ID and secret in Credential Manager. macOS Keychain and Android Keystore backed adapters are implemented in Rust but await builds and device tests on those platforms. Bucket, region, endpoint, and prefix are stored in the local SQLite catalogue. The app displays only the last four characters of the saved access key ID and a placeholder in the secret field. **Test connection** uses the official AWS Rust SDK to make a read-only `ListObjectsV2` request under the configured prefix. The browser version has no credential form. Saving and testing are local/read-only actions; **Sync now**, a photo's **Back up now** button, and the selection toolbar upload photos separately.
+The native app has a **Settings → Cloud storage** form. Windows saves the access key ID and secret in Credential Manager. macOS Keychain and Android Keystore backed adapters are implemented in Rust; the macOS Keychain adapter has passed native tests, while Android persistence still needs device testing. Bucket, region, endpoint, and prefix are stored in the local SQLite catalogue. The app displays only the last four characters of the saved access key ID and a placeholder in the secret field. **Test connection** uses the official AWS Rust SDK to make a read-only `ListObjectsV2` request under the configured prefix. The browser version has no credential form. Saving and testing are local/read-only actions; **Sync now**, a photo's **Back up now** button, and the selection toolbar upload photos separately.
 
 ## Settings flow
 
@@ -9,7 +9,7 @@ The native app has a **Settings → Cloud storage** form. Windows saves the acce
 3. The UI receives only connection status and a masked access key ID. It never reads a saved secret back. The saved secret field contains a visual placeholder, not the secret. Replacing or removing a connection is an explicit Settings action.
 4. Upload commands retrieve credentials inside Rust. Logs, errors, catalogue events, and S3 object metadata exclude both keys.
 
-The platform stores are Windows Credential Manager, macOS Keychain, and Android storage protected by Android Keystore. The Windows implementation calls [Win32 Credential Manager](https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credwritew) directly. The macOS and Android implementations use [Apple Native Keyring Store](https://docs.rs/apple-native-keyring-store/) and [Android Native Keyring Store](https://docs.rs/android-native-keyring-store/). Neither adapter falls back to a plaintext sample store. Platform build and persistence tests remain required.
+The platform stores are Windows Credential Manager, macOS Keychain, and Android storage protected by Android Keystore. The Windows implementation calls [Win32 Credential Manager](https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credwritew) directly. The macOS and Android implementations use [Apple Native Keyring Store](https://docs.rs/apple-native-keyring-store/) and [Android Native Keyring Store](https://docs.rs/android-native-keyring-store/). Neither adapter falls back to a plaintext sample store. macOS native tests use a disposable test target and verify write, read, and delete; the packaged app also retrieved its existing credential and passed a connection check after restart.
 
 ## Validation and access
 
@@ -48,7 +48,7 @@ For AWS, this IAM identity policy is a starting point for prefix `gallery/`. Rep
 
 ## Acceptance checks
 
-- Saving a connection survives an app restart on Windows, macOS, and Android. Windows persistence is implemented and tested; macOS and Android need platform verification.
+- Saving a connection survives an app restart on Windows, macOS, and Android. Windows persistence is implemented and tested. On macOS, the Keychain adapter passed a disposable write/read/delete round trip and the launched app read its already-saved credentials for a successful S3 check; saving a newly entered credential through the Settings form was not repeated to avoid replacing the user's existing credential.
 - The UI can show whether a connection exists without returning its secret.
 - A repository search, SQLite inspection, and captured logs show no saved access key or secret.
 - Wrong credentials, a missing bucket, offline use, replacement, and removal produce clear outcomes without leaking secret text. The user confirmed that the read-only remote check passed against the dedicated bucket.

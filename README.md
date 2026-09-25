@@ -2,11 +2,11 @@
 
 Gallery is a personal photo prototype built with Haxe/Eva, Tauri 2, Rust, SQLite, and private S3 storage. It is developed against the 111-photo `I:\Photos\Best of Poe 2` Takeout folder. Source photos are read only. The [delivery plan](PLAN.md) tracks the remaining work.
 
-## Current 0.8.3 builds
+## Current 0.8.4 builds
 
-Versioned Windows and Android packages are generated in the local `dist/` directory, which is excluded from Git. The latest tested packages are `Gallery-0.8.3-Windows-Setup.exe` and `Gallery-0.8.3-Android-arm64-debug-compact.apk`; their hashes are in the local `Gallery-0.8.3-SHA256SUMS.txt`. See [Android instructions](docs/ANDROID.md) and [release history](docs/VERSIONS.md).
+Versioned Windows, Android, and macOS packages are generated in the local `dist/` directory, which is excluded from Git. The latest published source is 0.8.3. Gallery 0.8.4 adds the first tested Apple Silicon macOS build; package status is tracked in [release history](docs/VERSIONS.md).
 
-Android now groups phone photos by source folder in Collections, keeps application folders such as WhatsApp out of the main Photos feed, shows collection covers, and uses a filled, justified layout at the largest grid setting. Phone acceptance of this build is pending. macOS compilation and testing require a Mac.
+Android groups phone photos by source folder in Collections, keeps application folders such as WhatsApp out of the main Photos feed, shows collection covers, and uses a filled, justified layout at the largest grid setting. Phone acceptance remains separate from the macOS work.
 
 ## Repository and local data
 
@@ -21,7 +21,7 @@ This repository tracks source, project configuration, and the generated Android 
 
 ## Build and test
 
-Use Haxe 4.3+, Node.js 24+, and the Tauri/Rust prerequisites. `npm ci` installs JavaScript dependencies. `npm run build` compiles the Haxe UI. `npm run test:ui`, `GALLERY_MOCK_TAURI=1 npm run test:ui`, `npm run test:remote`, and `npm run test:android-ui` exercise the browser, native bridge mock, lazy remote media, and Android empty state. Rust native tests run through `.tools/test-native.cmd` on this configured Windows workspace.
+Use Haxe 4.3+, Node.js 24+, and the Tauri/Rust prerequisites. `npm ci` installs JavaScript dependencies. `npm run build` compiles the Haxe UI. `npm run test:ui`, `GALLERY_MOCK_TAURI=1 npm run test:ui`, `npm run test:remote`, and `npm run test:android-ui` exercise the browser, native bridge mock, lazy remote media, and Android empty state. On macOS, set `GALLERY_SOURCE` to a local photo fixture folder for `test:ui` and `test:remote`; set `GALLERY_BROWSER_BIN` if Chrome is installed elsewhere. Run `cargo test --manifest-path src-tauri/Cargo.toml` for native tests, including a disposable Keychain round trip. To create the versioned macOS DMG, run `npm ci && npm run release:macos` with native-architecture Node.js 24+, Haxe 4.3+, Rust/Cargo, and Xcode Command Line Tools. It writes `dist/Gallery-<version>-macOS.dmg` and refuses to overwrite an existing package. Rust native tests also run through `.tools/test-native.cmd` on the configured Windows workspace.
 
 `npm run release:windows:installer` builds the Windows NSIS installer. `npm run release:android` builds the ARM64 debug APK with the workspace-local JDK/SDK/NDK under `.tools`; `npm run release:android:compact` verifies it and creates a byte-identical alias. Versioned package files are not overwritten. See [version rules](docs/VERSIONS.md), [sync details](docs/SYNC_DESIGN.md), [credential setup](docs/CREDENTIALS.md), and [mobile design](docs/MOBILE_DESIGN.md).
 

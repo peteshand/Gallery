@@ -451,4 +451,15 @@ mod tests {
         credential_store::delete(&target).unwrap();
         assert!(credential_store::read(&target).unwrap().is_none());
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_keychain_round_trip_uses_disposable_target() {
+        let target = format!("com.pshand.gallery/test-{}", std::process::id());
+        assert!(credential_store::read(&target).unwrap().is_none());
+        credential_store::write(&target, "EXAMPLEKEY", "example-secret").unwrap();
+        assert_eq!(credential_store::read(&target).unwrap(), Some(("EXAMPLEKEY".into(), "example-secret".into())));
+        credential_store::delete(&target).unwrap();
+        assert!(credential_store::read(&target).unwrap().is_none());
+    }
 }

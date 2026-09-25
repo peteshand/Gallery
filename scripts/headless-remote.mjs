@@ -1,17 +1,19 @@
 import { spawn } from 'node:child_process';
+import { browserExecutable, browserProfile, testSource } from './headless-browser.mjs';
 
 const root = process.cwd();
 const port = 43192;
 const debugPort = 49246;
-const browserBin = process.env.GALLERY_BROWSER_BIN || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const browserBin = browserExecutable();
+const sourceFolder = testSource();
 const server = spawn(process.execPath, ['server.mjs'], {
   cwd: root, windowsHide: true,
-  env: { ...process.env, PORT: String(port), GALLERY_DB: ':memory:', GALLERY_SOURCE: 'I:\\Photos\\Best of Poe 2' },
+  env: { ...process.env, PORT: String(port), GALLERY_DB: ':memory:', GALLERY_SOURCE: sourceFolder },
   stdio: ['ignore', 'pipe', 'pipe']
 });
 const chrome = spawn(browserBin, [
   '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run', '--no-default-browser-check',
-  `--remote-debugging-port=${debugPort}`, `--user-data-dir=${root}\\.tools\\remote-cdp`, 'about:blank'
+  `--remote-debugging-port=${debugPort}`, `--user-data-dir=${browserProfile(root, 'remote-cdp')}`, 'about:blank'
 ], { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function retry(fn) {

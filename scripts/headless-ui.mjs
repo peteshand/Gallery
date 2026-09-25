@@ -1,21 +1,23 @@
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { browserExecutable, browserProfile, testSource } from './headless-browser.mjs';
 
 const root = process.cwd();
 const viewportWidth = Number(process.env.GALLERY_VIEWPORT_WIDTH || 390);
 if (!Number.isInteger(viewportWidth) || viewportWidth < 320 || viewportWidth > 600) throw Error('GALLERY_VIEWPORT_WIDTH must be 320–600');
-const browserBin = process.env.GALLERY_BROWSER_BIN || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const browserBin = browserExecutable();
+const sourceFolder = testSource();
 const profileName = browserBin.toLowerCase().includes('msedge') ? 'edge-cdp' : 'chrome-cdp';
 const port = 43191;
 const debugPort = 49245;
 const server = spawn(process.execPath, ['server.mjs'], {
   cwd: root, windowsHide: true,
-  env: { ...process.env, PORT: String(port), GALLERY_DB: ':memory:', GALLERY_SOURCE: 'I:\\Photos\\Best of Poe 2' },
+  env: { ...process.env, PORT: String(port), GALLERY_DB: ':memory:', GALLERY_SOURCE: sourceFolder },
   stdio: ['ignore', 'pipe', 'pipe']
 });
 const chrome = spawn(browserBin, [
   '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run', '--no-default-browser-check',
-  `--remote-debugging-port=${debugPort}`, `--user-data-dir=${root}\\.tools\\${profileName}`, 'about:blank'
+  `--remote-debugging-port=${debugPort}`, `--user-data-dir=${browserProfile(root, profileName)}`, 'about:blank'
 ], { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function retry(fn) {
