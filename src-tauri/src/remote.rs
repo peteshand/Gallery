@@ -76,14 +76,15 @@ fn import_manifest(db: &Connection, prefix: &str, key: &str, bytes: &[u8]) -> Re
     let id = field(&value, "id")?;
     if !valid_id(id) || key != format!("{prefix}catalog/assets/{id}.json") { return Err("Cloud manifest ID does not match its key".into()); }
     let version = value.get("version").and_then(Value::as_i64).unwrap_or(0);
-    if version != 2 { return Err(format!("Unsupported cloud manifest version {version}")); }
+    if version != 2 && version != 3 { return Err(format!("Unsupported cloud manifest version {version}")); }
     let filename = field(&value, "filename")?;
     let taken_at = field(&value, "takenAt")?;
     let collection = field(&value, "collection")?;
     let (original_key, original_bytes) = {
         let object = value.get("original").ok_or("Missing original")?;
         let object_key = field(object, "key")?;
-        let expected_prefix = format!("{prefix}originals/{id}.");
+        let expected_prefix = if version == 3 { format!("{prefix}assets/{}/{id}/original.", &id[..2]) }
+            else { format!("{prefix}originals/{id}.") };
         if !object_key.starts_with(&expected_prefix) || object_key.len() <= expected_prefix.len() {
             return Err("Unexpected original object key".into());
         }
@@ -91,22 +92,28 @@ fn import_manifest(db: &Connection, prefix: &str, key: &str, bytes: &[u8]) -> Re
             .ok_or("Invalid original size")?;
         (object_key.to_string(), size)
     };
-    let (preview_key, preview_bytes) = media(&value, "preview", &format!("{prefix}previews/{id}.jpg"))?;
-    let (thumbnail_key, thumbnail_bytes) = media(&value, "thumbnail", &format!("{prefix}thumbnails/{id}.jpg"))?;
+    let (expected_preview, expected_thumbnail) = if version == 3 {
+        (format!("{prefix}assets/{}/{id}/preview.jpg", &id[..2]),
+         format!("{prefix}assets/{}/{id}/thumbnail.jpg", &id[..2]))
+    } else { (format!("{prefix}previews/{id}.jpg"), format!("{prefix}thumbnails/{id}.jpg")) };
+    let (preview_key, preview_bytes) = media(&value, "preview", &expected_preview)?;
+    let (thumbnail_key, thumbnail_bytes) = media(&value, "thumbnail", &expected_thumbnail)?;
+    let takeout_json = value.get("takeout").filter(|value| !value.is_null()).map(Value::to_string);
+    let sources_json = value.get("sources").filter(|value| value.is_array()).map(Value::to_string);
     let inserted = db.execute("INSERT OR IGNORE INTO assets
-        (id,filename,source_path,preview_path,taken_at,collection,favorite,description,latitude,longitude,altitude)
-        VALUES (?1,?2,'','',?3,?4,?5,?6,?7,?8,?9)", params![
+        (id,filename,source_path,preview_path,taken_at,collection,favorite,description,latitude,longitude,altitude,takeout_json,sources_json)
+        VALUES (?1,?2,'','',?3,?4,?5,?6,?7,?8,?9,?10,?11)", params![
         id, filename, taken_at, collection, value.get("favorite").and_then(Value::as_bool).unwrap_or(false) as i64,
         value.get("description").and_then(Value::as_str), value.get("latitude").and_then(Value::as_f64),
-        value.get("longitude").and_then(Value::as_f64), value.get("altitude").and_then(Value::as_f64)
+        value.get("longitude").and_then(Value::as_f64), value.get("altitude").and_then(Value::as_f64),takeout_json,sources_json
     ]).map_err(|error| error.to_string())?;
     if inserted == 0 {
         db.execute("UPDATE assets SET filename=?2, taken_at=?3, collection=?4,
             favorite=CASE WHEN favorite_modified=0 THEN ?5 ELSE favorite END,
-            description=?6,latitude=?7,longitude=?8,altitude=?9 WHERE id=?1 AND source_path=''", params![
+            description=?6,latitude=?7,longitude=?8,altitude=?9,takeout_json=?10,sources_json=?11 WHERE id=?1 AND source_path=''", params![
             id, filename, taken_at, collection, value.get("favorite").and_then(Value::as_bool).unwrap_or(false) as i64,
             value.get("description").and_then(Value::as_str), value.get("latitude").and_then(Value::as_f64),
-            value.get("longitude").and_then(Value::as_f64), value.get("altitude").and_then(Value::as_f64)
+            value.get("longitude").and_then(Value::as_f64), value.get("altitude").and_then(Value::as_f64),takeout_json,sources_json
         ]).map_err(|error| error.to_string())?;
     }
     db.execute("INSERT INTO remote_assets (asset_id,original_key,original_bytes,preview_key,preview_bytes,thumbnail_key,thumbnail_bytes,manifest_version)
@@ -425,7 +432,7 @@ mod tests {
         let db = Connection::open_in_memory().unwrap();
         db.execute_batch("CREATE TABLE assets (id TEXT PRIMARY KEY,filename TEXT NOT NULL,source_path TEXT NOT NULL,
             preview_path TEXT NOT NULL,taken_at TEXT NOT NULL,collection TEXT NOT NULL,favorite INTEGER NOT NULL DEFAULT 0,
-            favorite_modified INTEGER NOT NULL DEFAULT 0,description TEXT,latitude REAL,longitude REAL,altitude REAL)").unwrap();
+            favorite_modified INTEGER NOT NULL DEFAULT 0,description TEXT,latitude REAL,longitude REAL,altitude REAL,takeout_json TEXT,sources_json TEXT)").unwrap();
         prepare(&db).unwrap();
         let id = "a".repeat(64);
         let prefix = "gallery/";
@@ -443,6 +450,44 @@ mod tests {
         assert_eq!(source, "");
         assert_eq!(favorite, 1);
         assert!(import_manifest(&db, prefix, "gallery/catalog/assets/wrong.json", &bytes).is_err());
+    }
+
+    #[test]
+    fn imports_grouped_manifest_with_takeout_metadata() {
+        let root = std::env::temp_dir().join(format!("gallery-remote-v3-{}",std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let db = crate::open_database(&root.join("catalogue.sqlite")).unwrap();
+        let id = "b".repeat(64);
+        let prefix = "gallery/";
+        let media_prefix = format!("{prefix}assets/{}/{id}/",&id[..2]);
+        let key = format!("{prefix}catalog/assets/{id}.json");
+        let takeout = json!({"creationTime":{"timestamp":"1606476762"},
+            "people":[{"name":"Poe Shand"}],
+            "googlePhotosOrigin":{"composition":{"type":"AUTO"}},
+            "geoData":{"latitude":-33.8},
+            "photoTakenTime":{"timestamp":"1585452449"}});
+        let manifest = json!({"version":3,"id":id,"filename":"one.jpg",
+            "takenAt":"2020-01-01T00:00:00Z","collection":"Best of Poe 2",
+            "takeout":takeout,"sources":[{"sourceId":"root-a","sourceLabel":"Best of Poe 2",
+                "relativePath":"2020/one.jpg","takeout":takeout}],
+            "original":{"key":format!("{media_prefix}original.jpg"),"bytes":100},
+            "preview":{"key":format!("{media_prefix}preview.jpg"),"bytes":50},
+            "thumbnail":{"key":format!("{media_prefix}thumbnail.jpg"),"bytes":10}});
+        assert!(import_manifest(&db,prefix,&key,&serde_json::to_vec(&manifest).unwrap()).unwrap());
+        let stored: String = db.query_row("SELECT takeout_json FROM assets WHERE id=?1",
+            params![id], |row| row.get(0)).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&stored).unwrap(),takeout);
+        let sources: String = db.query_row("SELECT sources_json FROM assets WHERE id=?1",
+            params![id], |row| row.get(0)).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&sources).unwrap()[0]["relativePath"],"2020/one.jpg");
+        let bad = json!({"version":3,"id":id,"filename":"one.jpg",
+            "takenAt":"2020-01-01T00:00:00Z","collection":"Best of Poe 2",
+            "original":{"key":format!("{prefix}originals/{id}.jpg"),"bytes":100},
+            "preview":{"key":format!("{media_prefix}preview.jpg"),"bytes":50},
+            "thumbnail":{"key":format!("{media_prefix}thumbnail.jpg"),"bytes":10}});
+        assert!(import_manifest(&db,prefix,&key,&serde_json::to_vec(&bad).unwrap()).is_err());
+        drop(db);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

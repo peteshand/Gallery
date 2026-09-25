@@ -69,6 +69,7 @@ pub(crate) struct TakeoutMetadata {
     pub(crate) longitude: Option<f64>,
     pub(crate) altitude: Option<f64>,
     pub(crate) favorite: bool,
+    pub(crate) preserved: Value,
 }
 
 #[derive(Serialize)]
@@ -113,7 +114,7 @@ fn open_database(path: &Path) -> Result<Connection, String> {
         asset_id TEXT PRIMARY KEY, target TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'not_synced',
         original_done INTEGER NOT NULL DEFAULT 0, preview_done INTEGER NOT NULL DEFAULT 0,
         thumbnail_done INTEGER NOT NULL DEFAULT 0, manifest_done INTEGER NOT NULL DEFAULT 0,
-        synced_at TEXT, error TEXT, derivative_version INTEGER NOT NULL DEFAULT 2);").map_err(|error| error.to_string())?;
+        synced_at TEXT, error TEXT, derivative_version INTEGER NOT NULL DEFAULT 2, layout_version INTEGER NOT NULL DEFAULT 3);").map_err(|error| error.to_string())?;
     connection.execute_batch("CREATE TABLE IF NOT EXISTS import_errors (
         path TEXT PRIMARY KEY, error TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1,
         last_attempt_at TEXT NOT NULL);").map_err(|error| error.to_string())?;
@@ -138,6 +139,8 @@ fn open_database(path: &Path) -> Result<Connection, String> {
         ("taken_at_source", "INTEGER NOT NULL DEFAULT 0"),
         ("favorite_clock", "INTEGER NOT NULL DEFAULT 0"),
         ("favorite_device", "TEXT NOT NULL DEFAULT ''"),
+        ("takeout_json", "TEXT"),
+        ("sources_json", "TEXT"),
     ] {
         if !columns.contains(name) {
             connection
@@ -262,6 +265,13 @@ pub(crate) fn sidecar_metadata(directory: &Path) -> HashMap<String, TakeoutMetad
             longitude: location.and_then(|value| value.get("longitude")).and_then(Value::as_f64),
             altitude: location.and_then(|value| value.get("altitude")).and_then(Value::as_f64),
             favorite: json.get("favorited").and_then(Value::as_bool).unwrap_or(false),
+            preserved: serde_json::json!({
+                "creationTime": json.get("creationTime"),
+                "people": json.get("people"),
+                "googlePhotosOrigin": json.get("googlePhotosOrigin"),
+                "geoData": json.get("geoData"),
+                "photoTakenTime": json.get("photoTakenTime")
+            }),
         });
     }
     result

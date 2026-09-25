@@ -1,6 +1,6 @@
 [package]
 name = "gallery"
-version = "0.10.2"
+version = "0.11.0"
 description = "Personal photo gallery"
 authors = ["Gallery"]
 edition = "2021"

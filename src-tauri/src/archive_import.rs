@@ -2,6 +2,7 @@ use crate::{file_hash, open_database, sidecar_metadata, sync, ImportResult};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
+use sha2::Digest;
 use std::{fs, path::Path, sync::Mutex, time::UNIX_EPOCH};
 
 #[derive(Default)]
@@ -81,8 +82,22 @@ pub fn import_archive(source: &Path, cache: &Path, database_path: &Path, runner:
     fs::create_dir_all(cache).map_err(|error| error.to_string())?;
     let db = open_database(database_path)?;
     db.execute_batch("CREATE TABLE IF NOT EXISTS import_sources (
-        path TEXT PRIMARY KEY, bytes INTEGER NOT NULL, modified_ns INTEGER NOT NULL, asset_id TEXT NOT NULL);")
+        path TEXT PRIMARY KEY, bytes INTEGER NOT NULL, modified_ns INTEGER NOT NULL, asset_id TEXT NOT NULL,
+        source_id TEXT NOT NULL DEFAULT '', source_label TEXT NOT NULL DEFAULT '', relative_path TEXT NOT NULL DEFAULT '',
+        takeout_json TEXT, metadata_version INTEGER NOT NULL DEFAULT 0);")
         .map_err(|error| error.to_string())?;
+    for (name, definition) in [("source_id", "TEXT NOT NULL DEFAULT ''"),
+        ("source_label", "TEXT NOT NULL DEFAULT ''"),
+        ("relative_path", "TEXT NOT NULL DEFAULT ''"), ("takeout_json", "TEXT"),
+        ("metadata_version", "INTEGER NOT NULL DEFAULT 0")] {
+        let columns = db.prepare("PRAGMA table_info(import_sources)").map_err(|error| error.to_string())?
+            .query_map([], |row| row.get::<_, String>(1)).map_err(|error| error.to_string())?
+            .collect::<rusqlite::Result<Vec<_>>>().map_err(|error| error.to_string())?;
+        if !columns.contains(&name.to_string()) {
+            db.execute(&format!("ALTER TABLE import_sources ADD COLUMN {name} {definition}"), [])
+                .map_err(|error| error.to_string())?;
+        }
+    }
     let mut result = ImportResult { scanned:0, added:0, existing:0, errors:Vec::new() };
     let mut directories = vec![source.to_path_buf()];
     while let Some(directory) = directories.pop() {
@@ -135,13 +150,17 @@ fn import_one(db: &rusqlite::Connection, root: &Path, cache: &Path, path: &Path,
     let modified_ns = metadata.modified().map_err(|error| error.to_string())?
         .duration_since(UNIX_EPOCH).map_err(|error| error.to_string())?.as_nanos() as i64;
     let source_path = path.to_string_lossy().into_owned();
-    let known: Option<(i64, i64, String)> = db.query_row("SELECT bytes,modified_ns,asset_id FROM import_sources WHERE path=?1",
-        params![source_path], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)))
+    let source_id = format!("{:x}", sha2::Sha256::digest(root.to_string_lossy().as_bytes()));
+    let filename = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let sidecar = sidecars.get(&filename.to_lowercase());
+    let takeout_json = sidecar.map(|value| value.preserved.to_string());
+    let known: Option<(i64, i64, String, i64, Option<String>, String)> = db.query_row("SELECT bytes,modified_ns,asset_id,metadata_version,takeout_json,source_id FROM import_sources WHERE path=?1",
+        params![source_path], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?)))
         .optional().map_err(|error| error.to_string())?;
-    if let Some((bytes, modified, id)) = known {
+    if let Some((bytes, modified, id, metadata_version, old_takeout_json, old_source_id)) = known {
         let asset_exists = db.query_row("SELECT 1 FROM assets WHERE id=?1", params![id], |_| Ok(true))
             .optional().map_err(|error| error.to_string())?.unwrap_or(false);
-        if bytes == metadata.len() as i64 && modified == modified_ns &&
+        if metadata_version >= 1 && old_source_id == source_id && old_takeout_json == takeout_json && bytes == metadata.len() as i64 && modified == modified_ns &&
             asset_exists &&
             cache.join(&id).join("preview.jpg").is_file() && cache.join(&id).join("thumbnail-v2.jpg").is_file() {
             return Ok(false);
@@ -149,20 +168,21 @@ fn import_one(db: &rusqlite::Connection, root: &Path, cache: &Path, path: &Path,
     }
     let id = file_hash(path)?;
     let (preview, _, _, _) = sync::derivatives(path, &cache.join(&id))?;
-    let filename = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
-    let sidecar = sidecars.get(&filename.to_lowercase());
     let sidecar_date = sidecar.and_then(|value| value.taken_at.as_deref());
     let taken_at = sidecar_date.map(str::to_string).unwrap_or_else(|| DateTime::<Utc>::from(metadata.modified().unwrap()).to_rfc3339());
+    let source_label = root.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let relative_path = path.strip_prefix(root).map_err(|error| error.to_string())?
+        .to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/");
     let relative = path.parent().unwrap_or(root).strip_prefix(root).unwrap_or(Path::new(""));
-    let collection = if relative.as_os_str().is_empty() { root.file_name().unwrap_or_default().to_string_lossy().into_owned() }
-        else { relative.to_string_lossy().into_owned() };
+    let collection = if relative.as_os_str().is_empty() { source_label.clone() }
+        else { format!("{}/{}", source_label, relative.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/")) };
     let added = db.execute("INSERT OR IGNORE INTO assets
-        (id,filename,source_path,preview_path,taken_at,collection,favorite,taken_at_source,description,latitude,longitude,altitude)
-        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)", params![
+        (id,filename,source_path,preview_path,taken_at,collection,favorite,taken_at_source,description,latitude,longitude,altitude,takeout_json)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)", params![
         id,filename,source_path,preview.to_string_lossy(),taken_at,collection,
         sidecar.map(|value| value.favorite as i64).unwrap_or(0),sidecar_date.is_some() as i64,
         sidecar.and_then(|value| value.description.as_deref()),sidecar.and_then(|value| value.latitude),
-        sidecar.and_then(|value| value.longitude),sidecar.and_then(|value| value.altitude)])
+        sidecar.and_then(|value| value.longitude),sidecar.and_then(|value| value.altitude),takeout_json])
         .map_err(|error| error.to_string())?;
     if added == 0 {
         db.execute("UPDATE assets SET source_path=?2,preview_path=?3,
@@ -170,15 +190,21 @@ fn import_one(db: &rusqlite::Connection, root: &Path, cache: &Path, path: &Path,
             taken_at_source=CASE WHEN ?4 IS NOT NULL THEN 1 ELSE taken_at_source END,
             favorite=CASE WHEN favorite_modified=0 AND ?5=1 THEN 1 ELSE favorite END,
             description=COALESCE(description,?6),latitude=COALESCE(latitude,?7),
-            longitude=COALESCE(longitude,?8),altitude=COALESCE(altitude,?9) WHERE id=?1", params![
+            longitude=COALESCE(longitude,?8),altitude=COALESCE(altitude,?9),
+            takeout_json=COALESCE(?10,takeout_json) WHERE id=?1", params![
             id,source_path,preview.to_string_lossy(),sidecar_date,sidecar.map(|value| value.favorite as i64).unwrap_or(0),
             sidecar.and_then(|value| value.description.as_deref()),sidecar.and_then(|value| value.latitude),
-            sidecar.and_then(|value| value.longitude),sidecar.and_then(|value| value.altitude)])
+            sidecar.and_then(|value| value.longitude),sidecar.and_then(|value| value.altitude),takeout_json])
             .map_err(|error| error.to_string())?;
     }
-    db.execute("INSERT INTO import_sources(path,bytes,modified_ns,asset_id) VALUES (?1,?2,?3,?4)
-        ON CONFLICT(path) DO UPDATE SET bytes=excluded.bytes,modified_ns=excluded.modified_ns,asset_id=excluded.asset_id",
-        params![source_path,metadata.len() as i64,modified_ns,id]).map_err(|error| error.to_string())?;
+    db.execute("UPDATE sync_items SET state='not_synced',manifest_done=0,synced_at=NULL
+        WHERE asset_id=?1", params![id]).map_err(|error| error.to_string())?;
+    db.execute("INSERT INTO import_sources(path,bytes,modified_ns,asset_id,source_id,source_label,relative_path,takeout_json,metadata_version)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,1)
+        ON CONFLICT(path) DO UPDATE SET bytes=excluded.bytes,modified_ns=excluded.modified_ns,
+        asset_id=excluded.asset_id,source_id=excluded.source_id,source_label=excluded.source_label,relative_path=excluded.relative_path,
+        takeout_json=excluded.takeout_json,metadata_version=1",
+        params![source_path,metadata.len() as i64,modified_ns,id,source_id,source_label,relative_path,takeout_json]).map_err(|error| error.to_string())?;
     Ok(added > 0)
 }
 
@@ -270,6 +296,41 @@ mod tests {
         runner.finish();
         let repeat = import_archive(&photos,&cache,&db,&ImportRunner::default()).unwrap();
         assert_eq!((repeat.added,repeat.existing),(0,1));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn preserves_selected_takeout_fields_and_nested_source_path() {
+        let root = std::env::temp_dir().join(format!("gallery-takeout-fields-{}",std::process::id()));
+        let photos = root.join("Best of Poe 2").join("2017");
+        let cache = root.join("cache");
+        let db_path = root.join("gallery.sqlite");
+        fs::create_dir_all(&photos).unwrap();
+        RgbImage::from_pixel(32,24,Rgb([1,2,3])).save(photos.join("photo.jpg")).unwrap();
+        fs::write(photos.join("photo.jpg.supplemental-metadata.json"),
+            serde_json::json!({
+                "creationTime":{"timestamp":"1500000000","formatted":"Jul 14, 2017"},
+                "photoTakenTime":{"timestamp":"1500000001","formatted":"Jul 14, 2017"},
+                "people":[{"name":"Poe Shand"}],
+                "googlePhotosOrigin":{"composition":{"type":"AUTO"}},
+                "geoData":{"latitude":-33.8,"longitude":151.1,"altitude":34.8},
+                "url":"https://photos.google.com/private"
+            }).to_string()).unwrap();
+        import_archive(&root.join("Best of Poe 2"),&cache,&db_path,&ImportRunner::default()).unwrap();
+        let db = open_database(&db_path).unwrap();
+        let (collection, takeout): (String,String) = db.query_row(
+            "SELECT collection,takeout_json FROM assets", [], |row| Ok((row.get(0)?,row.get(1)?))).unwrap();
+        assert_eq!(collection,"Best of Poe 2/2017");
+        let value: serde_json::Value = serde_json::from_str(&takeout).unwrap();
+        for name in ["creationTime","photoTakenTime","people","googlePhotosOrigin","geoData"] {
+            assert!(!value[name].is_null(),"{name} was lost");
+        }
+        assert!(value.get("url").is_none());
+        let (label,relative): (String,String) = db.query_row("SELECT source_label,relative_path FROM import_sources",
+            [], |row| Ok((row.get(0)?,row.get(1)?))).unwrap();
+        assert_eq!(label,"Best of Poe 2");
+        assert_eq!(relative,"2017/photo.jpg");
+        drop(db);
         fs::remove_dir_all(root).unwrap();
     }
 

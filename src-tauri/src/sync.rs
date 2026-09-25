@@ -73,6 +73,7 @@ struct Item {
     latitude: Option<f64>,
     longitude: Option<f64>,
     altitude: Option<f64>,
+    takeout: Option<serde_json::Value>,
 }
 
 fn prepare_schema(db: &Connection) -> Result<(), String> {
@@ -86,7 +87,8 @@ fn prepare_schema(db: &Connection) -> Result<(), String> {
         manifest_done INTEGER NOT NULL DEFAULT 0,
         synced_at TEXT,
         error TEXT,
-        derivative_version INTEGER NOT NULL DEFAULT 2
+        derivative_version INTEGER NOT NULL DEFAULT 2,
+        layout_version INTEGER NOT NULL DEFAULT 3
     );").map_err(|_| "Could not prepare local sync state".to_string())?;
     let has_derivative_version = db.prepare("PRAGMA table_info(sync_items)")
         .map_err(|_| "Could not inspect local sync state".to_string())?
@@ -101,6 +103,17 @@ fn prepare_schema(db: &Connection) -> Result<(), String> {
         thumbnail_done=0, manifest_done=0, synced_at=NULL, derivative_version=2
         WHERE derivative_version<2", [])
         .map_err(|_| "Could not queue updated thumbnails".to_string())?;
+    let has_layout_version = db.prepare("PRAGMA table_info(sync_items)")
+        .map_err(|error| error.to_string())?
+        .query_map([], |row| row.get::<_, String>(1)).map_err(|error| error.to_string())?
+        .any(|column| matches!(column, Ok(name) if name == "layout_version"));
+    if !has_layout_version {
+        db.execute_batch("ALTER TABLE sync_items ADD COLUMN layout_version INTEGER NOT NULL DEFAULT 2")
+            .map_err(|error| error.to_string())?;
+    }
+    db.execute("UPDATE sync_items SET state='not_synced',original_done=0,preview_done=0,
+        thumbnail_done=0,manifest_done=0,synced_at=NULL,error=NULL,layout_version=3
+        WHERE layout_version<3", []).map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -108,19 +121,19 @@ fn target(config: &cloud::S3Config) -> String { format!("{}/{}", config.bucket, 
 
 fn reconcile_remote(db: &Connection, target: &str) -> Result<(), String> {
     // A cloud manifest is written last, after all three media objects. A matching
-    // version-2 manifest proves that this exact content hash is already backed up.
+    // version-3 manifest proves that this exact content hash is already backed up.
     db.execute("INSERT OR IGNORE INTO sync_items
-        (asset_id,target,state,original_done,preview_done,thumbnail_done,manifest_done,synced_at,derivative_version)
-        SELECT a.id,?1,'synced',1,1,1,1,datetime('now'),2
+        (asset_id,target,state,original_done,preview_done,thumbnail_done,manifest_done,synced_at,derivative_version,layout_version)
+        SELECT a.id,?1,'synced',1,1,1,1,datetime('now'),2,3
         FROM assets a JOIN remote_assets r ON r.asset_id=a.id
-        WHERE a.source_path<>'' AND r.manifest_version=2", params![target])
+        WHERE a.source_path<>'' AND r.manifest_version=3", params![target])
         .map_err(|error| format!("Could not reconcile cloud backups: {error}"))?;
     db.execute("UPDATE sync_items SET state='synced',original_done=1,preview_done=1,
-        thumbnail_done=1,manifest_done=1,synced_at=datetime('now'),error=NULL,derivative_version=2
+        thumbnail_done=1,manifest_done=1,synced_at=datetime('now'),error=NULL,derivative_version=2,layout_version=3
         WHERE target=?1 AND state='not_synced' AND original_done=0 AND preview_done=0
         AND thumbnail_done=0 AND manifest_done=0
         AND asset_id IN (SELECT a.id FROM assets a JOIN remote_assets r ON r.asset_id=a.id
-            WHERE a.source_path<>'' AND r.manifest_version=2)", params![target])
+            WHERE a.source_path<>'' AND r.manifest_version=3)", params![target])
         .map_err(|error| format!("Could not reconcile cloud backups: {error}"))?;
     Ok(())
 }
@@ -134,6 +147,7 @@ fn active_target(db: &Connection) -> Result<Option<String>, String> {
 }
 
 fn enqueue(db: &Connection, target: &str) -> Result<(), String> {
+    prepare_schema(db)?;
     reconcile_remote(db, target)?;
     db.execute("INSERT OR IGNORE INTO sync_items (asset_id, target, state)
         SELECT id, ?1, 'not_synced' FROM assets WHERE source_path<>''", params![target])
@@ -174,12 +188,35 @@ fn read_status(db: &Connection, running: bool) -> Result<SyncStatus, String> {
 
 fn item(db: &Connection, id: &str) -> Result<Item, String> {
     db.query_row("SELECT id, filename, source_path, preview_path, taken_at, collection, favorite,
-        description, latitude, longitude, altitude FROM assets WHERE id=?1", params![id], |row| Ok(Item {
+        description, latitude, longitude, altitude, takeout_json FROM assets WHERE id=?1", params![id], |row| Ok(Item {
         filename: row.get(1)?, source_path: PathBuf::from(row.get::<_, String>(2)?),
         preview_path: PathBuf::from(row.get::<_, String>(3)?), taken_at: row.get(4)?, collection: row.get(5)?,
         favorite: row.get::<_, i64>(6)? != 0, description: row.get(7)?, latitude: row.get(8)?,
         longitude: row.get(9)?, altitude: row.get(10)?,
+        takeout: row.get::<_, Option<String>>(11)?.and_then(|text| serde_json::from_str(&text).ok()),
     })).map_err(|_| "Could not read queued photo".to_string())
+}
+
+fn source_records(db: &Connection, id: &str, item: &Item) -> Result<Vec<serde_json::Value>, String> {
+    let exists = db.query_row("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_sources'",
+        [], |_| Ok(true)).optional().map_err(|error| error.to_string())?.unwrap_or(false);
+    let mut sources = Vec::new();
+    if exists {
+        let mut statement = db.prepare("SELECT source_id,source_label,relative_path,takeout_json FROM import_sources
+            WHERE asset_id=?1 ORDER BY source_label,relative_path").map_err(|error| error.to_string())?;
+        let rows = statement.query_map(params![id], |row| Ok((
+            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?
+        ))).map_err(|error| error.to_string())?;
+        for row in rows {
+            let (source_id, label, path, takeout) = row.map_err(|error| error.to_string())?;
+            sources.push(json!({"sourceId":source_id, "sourceLabel":label, "relativePath":path,
+                "takeout":takeout.and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())}));
+        }
+    }
+    if sources.is_empty() && phone_media::source_media_id(&item.source_path).is_some() {
+        sources.push(json!({"sourceLabel":item.collection, "relativePath":item.filename}));
+    }
+    Ok(sources)
 }
 
 fn set_state(db: &Connection, id: &str, state: &str, error: Option<&str>) -> Result<(), String> {
@@ -287,9 +324,10 @@ async fn upload_one(db: &Connection, cache: &Path, client: &aws_sdk_s3::Client,
     if crate::file_hash(source)? != id { return Err("Original photo changed since import; reimport before syncing".into()); }
     let extension = item.filename.rsplit('.').next().unwrap_or("jpg").to_ascii_lowercase();
     let mime = match extension.as_str() { "png" => "image/png", "gif" => "image/gif", "webp" => "image/webp", _ => "image/jpeg" };
-    let original_key = format!("{}originals/{}.{}", config.prefix, id, extension);
-    let preview_key = format!("{}previews/{}.jpg", config.prefix, id);
-    let thumbnail_key = format!("{}thumbnails/{}.jpg", config.prefix, id);
+    let asset_prefix = format!("{}assets/{}/{}/", config.prefix, &id[..2], id);
+    let original_key = format!("{asset_prefix}original.{extension}");
+    let preview_key = format!("{asset_prefix}preview.jpg");
+    let thumbnail_key = format!("{asset_prefix}thumbnail.jpg");
     let manifest_key = format!("{}catalog/assets/{}.json", config.prefix, id);
     let (preview, thumbnail, width, height) = derivatives(source, &cache.join(id))?;
     if stop_if_requested(db, id, should_cancel)? { return Ok(false); }
@@ -318,8 +356,10 @@ async fn upload_one(db: &Connection, cache: &Path, client: &aws_sdk_s3::Client,
     let (thumb_width, thumb_height) = image::image_dimensions(&thumbnail)
         .map_err(|_| "Could not measure thumbnail dimensions".to_string())?;
     if flags.3 == 0 {
+        let sources = source_records(db, id, &item)?;
         put_json(client, &config.bucket, &manifest_key, json!({
-            "version": 2, "id": id, "filename": item.filename, "takenAt": item.taken_at,
+            "version": 3, "id": id, "filename": item.filename, "takenAt": item.taken_at,
+            "sources": sources, "takeout": item.takeout,
             "collection": item.collection, "favorite": item.favorite, "description": item.description,
             "latitude": item.latitude, "longitude": item.longitude, "altitude": item.altitude,
             "width": width, "height": height,
@@ -543,7 +583,7 @@ mod tests {
              FROM sync_items WHERE asset_id='abc'", [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
         ).unwrap();
-        assert_eq!(row, ("not_synced".into(), 1, 1, 0, 0, 2));
+        assert_eq!(row, ("not_synced".into(), 0, 0, 0, 0, 2));
         prepare_schema(&db).unwrap();
         let pending: i64 = db.query_row("SELECT COUNT(*) FROM sync_items WHERE state='not_synced'", [], |row| row.get(0)).unwrap();
         assert_eq!(pending, 1);
@@ -562,7 +602,7 @@ mod tests {
             INSERT INTO remote_assets(asset_id,original_key,original_bytes,preview_key,preview_bytes,
                 thumbnail_key,thumbnail_bytes,manifest_version)
                 VALUES ('already','gallery/originals/already.jpg',1,'gallery/previews/already.jpg',1,
-                    'gallery/thumbnails/already.jpg',1,2);") .unwrap();
+                    'gallery/thumbnails/already.jpg',1,3);") .unwrap();
         let status = read_status(&db, false).unwrap();
         assert_eq!((status.total,status.synced,status.not_synced),(2,1,1));
         enqueue(&db,"bucket/gallery/").unwrap();
