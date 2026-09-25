@@ -1,4 +1,5 @@
 -cp haxe/src
+-cp haxe/generated
 -cp haxe/vendor
 -main Main
 -js web/app.js

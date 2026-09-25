@@ -3,6 +3,8 @@ package gallery.view.settings;
 
 class SettingsView extends DomContainer {
   public var closeButton(default, null):Element;
+  public var backButton(default, null):Element;
+  public var menuView(default, null):SettingsMenuView;
   public var sourceChoose(default, null):Element;
   public var sourceCancel(default, null):Element;
   public var cloudForm(default, null):Element;
@@ -32,12 +34,12 @@ class SettingsView extends DomContainer {
   }
 
   override public function initialize():Void {
-    element.innerHTML = '<div class="settings-card"><div class="settings-title"><h2>Settings</h2><button id="settings-close" aria-label="Close settings">×</button></div>'
+    element.innerHTML = '<div class="settings-card"><div class="settings-title"><button id="settings-back" class="settings-back hidden" type="button" aria-label="Back to settings categories">‹</button><div class="settings-heading"><h2 id="settings-page-title">Settings</h2><small id="app-version">Version ' + BuildInfo.VERSION + '</small></div><button id="settings-close" aria-label="Close settings">×</button></div>'
       + '<section id="desktop-sources"><div id="source-folders-host"></div><p id="source-path"></p><button id="source-choose" class="secondary-button" type="button">Add photo folder</button>'
       + '<button id="source-cancel" class="secondary-button hidden" type="button">Cancel import</button><p id="source-progress" role="status"></p>'
       + '<details id="source-errors" class="hidden"><summary>Import errors</summary><ul id="source-error-list"></ul></details>'
       + '<p>The source files are read only. The catalogue is stored separately.</p></section><div id="phone-source-host"></div>'
-      + '<h3>Cloud storage</h3><div id="cloud-native"><p id="cloud-state" role="status">Checking local connection…</p><form id="cloud-form" autocomplete="off">'
+      + '<h3 id="cloud-heading">Cloud storage</h3><div id="cloud-native"><p id="cloud-state" role="status">Checking local connection…</p><form id="cloud-form" autocomplete="off">'
       + '<label for="cloud-bucket">Bucket</label><input id="cloud-bucket" required spellcheck="false" autocomplete="off" placeholder="my-gallery-bucket">'
       + '<label for="cloud-region">Region</label><input id="cloud-region" required spellcheck="false" autocomplete="off" placeholder="ap-southeast-2">'
       + '<label for="cloud-endpoint">Endpoint (optional)</label><input id="cloud-endpoint" type="url" spellcheck="false" autocomplete="off" placeholder="https://…">'
@@ -47,6 +49,22 @@ class SettingsView extends DomContainer {
       + '<p>Credentials are saved in this device’s protected store. Saving does not upload photos yet.</p>'
       + '<div class="cloud-buttons"><button id="cloud-save" class="primary-button" type="submit">Save connection</button><button id="cloud-test" class="secondary-button hidden" type="button">Test connection</button><button id="cloud-edit" class="secondary-button hidden" type="button">Replace credentials</button><button id="cloud-remove" class="secondary-button" type="button">Remove</button></div>'
       + '</form><p id="cloud-message" role="status"></p><div id="backup-host"></div></div><p id="cloud-browser" class="hidden">Cloud settings are available in the native app.</p></div>';
+    var card = element.querySelector('.settings-card');
+    var photosPage = makePage(card, 'photos');
+    photosPage.appendChild(element.querySelector('#desktop-sources'));
+    photosPage.appendChild(element.querySelector('#phone-source-host'));
+    var cloudPage = makePage(card, 'cloud');
+    cloudPage.appendChild(element.querySelector('#cloud-heading'));
+    cloudPage.appendChild(element.querySelector('#cloud-native'));
+    cloudPage.appendChild(element.querySelector('#cloud-browser'));
+    var backupPage = makePage(card, 'backup');
+    backupPage.appendChild(element.querySelector('#backup-host'));
+    var downloadsPage = makePage(card, 'downloads');
+    var aboutPage = makePage(card, 'about');
+    aboutPage.innerHTML = '<h3>Gallery</h3><p>Version ' + BuildInfo.VERSION + '</p>';
+    menuView = new SettingsMenuView();
+    addChild(menuView);
+    card.insertBefore(menuView.element, photosPage);
     var native = element.querySelector('#cloud-native');
     var cloudExtras = Browser.document.createElement('section');
     cloudExtras.className = 'cloud-extras';
@@ -56,8 +74,9 @@ class SettingsView extends DomContainer {
       + '<h3>Photo cache</h3><p id="cache-usage">Checking cache…</p>'
       + '<label for="cache-limit">Maximum cache size (GB)</label><input id="cache-limit" type="number" min="0.064" max="50" step="0.1" value="2">'
       + '<button id="cache-save" class="secondary-button" type="button">Save cache limit</button>';
-    native.appendChild(cloudExtras);
+    downloadsPage.appendChild(cloudExtras);
     closeButton = element.querySelector('#settings-close');
+    backButton = element.querySelector('#settings-back');
     sourceChoose = element.querySelector('#source-choose');
     sourceCancel = element.querySelector('#source-cancel');
     sourceLabel = element.querySelector('#source-path');
@@ -83,6 +102,33 @@ class SettingsView extends DomContainer {
     phoneView = new PhoneSourceView();
     addChild(phoneView);
     element.querySelector('#phone-source-host').appendChild(phoneView.element);
+  }
+
+  function makePage(card:Element, name:String):Element {
+    var page = Browser.document.createElement('section');
+    page.className = 'settings-page hidden';
+    page.setAttribute('data-settings-page', name);
+    card.appendChild(page);
+    return page;
+  }
+
+  public function showPage(page:String):Void {
+    var title = switch page {
+      case 'photos': 'Photos';
+      case 'cloud': 'Cloud storage';
+      case 'backup': 'Backup';
+      case 'downloads': 'Downloads and cache';
+      case 'about': 'About';
+      case _: 'Settings';
+    };
+    element.querySelector('#settings-page-title').textContent = title;
+    backButton.classList.toggle('hidden', page == 'home');
+    menuView.element.classList.toggle('hidden', page != 'home');
+    for (node in element.querySelectorAll('.settings-page')) {
+      var pane:Element = cast node;
+      pane.classList.toggle('hidden', pane.getAttribute('data-settings-page') != page);
+    }
+    element.scrollTop = 0;
   }
 
   public function show(open:Bool):Void element.classList.toggle('hidden', !open);

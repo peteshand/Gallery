@@ -83,6 +83,9 @@ try {
   state.settingsOpened = await evaluate(`!document.querySelector('#settings').classList.contains('hidden')`);
   state.folderHidden = await evaluate(`document.querySelector('#source-choose').classList.contains('hidden')`);
   state.settingsTopPadding = await evaluate(`parseFloat(getComputedStyle(document.querySelector('.settings-card')).paddingTop)`);
+  state.settingsCategories = await evaluate(`document.querySelectorAll('.settings-menu [data-settings-page]').length`);
+  await evaluate(`document.querySelector('[data-settings-page=photos]').click()`);
+  state.photosPage = await evaluate(`!document.querySelector('[data-settings-page="photos"].settings-page').classList.contains('hidden')`);
   state.phoneSection = await evaluate(`!document.querySelector('.phone-source').classList.contains('hidden')`);
   state.backupDefaults = JSON.parse(await evaluate(`JSON.stringify({auto:document.querySelector('#phone-auto-backup').checked,wifi:document.querySelector('#phone-wifi-only').checked,background:document.querySelector('#phone-background-backup').checked})`));
   await evaluate(`document.querySelector('#phone-access').click()`);
@@ -110,7 +113,7 @@ try {
   state.backgroundSaved = await evaluate(`window.__mockPhone.preferences.backgroundBackup`);
   console.log(JSON.stringify({ state, exceptions }));
   socket.close();
-  if (!state.message?.includes('Connect cloud storage') || state.button !== 'Open settings' || !state.topImportHidden || !state.settingsOpened || !state.folderHidden || !state.viewerAndroidInset || state.viewerTopPadding < 32 || state.galleryTopPadding < 32 || state.darkBackground !== 'rgb(21, 24, 27)' || state.settingsTopPadding < 52 || !state.phoneSection || state.backupDefaults.auto || !state.backupDefaults.wifi || state.backupDefaults.background || !state.phoneAccess.includes('Selected phone photos') || state.phoneTiles !== 1 || !state.phoneCollection || !state.phoneFolders.includes('Camera') || !state.phoneFolders.includes('WhatsApp') || state.whatsAppTiles !== 1 || !state.selectedAutoRejected || !state.fullAccess || !state.autoSaved || !state.backgroundSaved || exceptions.length) process.exitCode = 1;
+  if (!state.message?.includes('Connect cloud storage') || state.button !== 'Open settings' || !state.topImportHidden || !state.settingsOpened || !state.folderHidden || !state.viewerAndroidInset || state.viewerTopPadding < 32 || state.galleryTopPadding < 32 || state.darkBackground !== 'rgb(21, 24, 27)' || state.settingsTopPadding < 52 || state.settingsCategories !== 5 || !state.photosPage || !state.phoneSection || state.backupDefaults.auto || !state.backupDefaults.wifi || state.backupDefaults.background || !state.phoneAccess.includes('Selected phone photos') || state.phoneTiles !== 1 || !state.phoneCollection || !state.phoneFolders.includes('Camera') || !state.phoneFolders.includes('WhatsApp') || state.whatsAppTiles !== 1 || !state.selectedAutoRejected || !state.fullAccess || !state.autoSaved || !state.backgroundSaved || exceptions.length) process.exitCode = 1;
 } finally {
   server.kill();
   chrome.kill();

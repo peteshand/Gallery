@@ -11,15 +11,18 @@ class SettingsViewMediator extends Mediator {
   var editing = false;
 
   override public function initialize():Void {
+    mediatorMap.map(SettingsMenuView).toMediator(SettingsMenuViewMediator);
     mediatorMap.map(BackupView).toMediator(BackupViewMediator);
     mediatorMap.map(SourceFoldersView).toMediator(SourceFoldersViewMediator);
     mediatorMap.map(PhoneSourceView).toMediator(PhoneSourceViewMediator);
     view.initialize();
     gallery.settingsOpen.add(function(open) {
       view.show(open);
+      if (open) gallery.settingsPage.value = 'home';
       if (open && cloud.available.value) cloud.refreshRequested.dispatch();
       if (open) library.importErrorsRequested.dispatch();
     }).fireOnAdd();
+    gallery.settingsPage.add(view.showPage).fireOnAdd();
     gallery.sourcePath.add(function(path) view.showSource(path)).fireOnAdd();
     library.importProgress.add(view.showImport).fireOnAdd();
     library.importErrors.add(view.showImportErrors).fireOnAdd();
@@ -35,6 +38,7 @@ class SettingsViewMediator extends Mediator {
     cloud.cache.add(view.showCache).fireOnAdd();
     cloud.catalogBusy.add(function(busy) view.cloudRefresh.toggleAttribute('disabled', busy)).fireOnAdd();
     view.closeButton.addEventListener('click', function(_) gallery.settingsOpen.value = false);
+    view.backButton.addEventListener('click', function(_) gallery.settingsPage.value = 'home');
     view.sourceChoose.addEventListener('click', function(_) gallery.chooseSourceRequested.dispatch());
     view.thumbnailOnlyInput.addEventListener("change", function(_) media.thumbnailOnly.value = view.thumbnailOnlyInput.checked);
     view.sourceCancel.addEventListener('click', function(_) library.cancelImportRequested.dispatch());

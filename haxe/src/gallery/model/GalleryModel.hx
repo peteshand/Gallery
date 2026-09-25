@@ -8,6 +8,7 @@ class GalleryModel {
   public var selectionAnchor = new Notifier<String>('');
   public var activePhotoId = new Notifier<String>(null);
   public var settingsOpen = new Notifier<Bool>(false);
+  public var settingsPage = new Notifier<String>('home');
   public var detailsOpen = new Notifier<Bool>(false);
   public var collection = new Notifier<String>(null);
   public var sourcePath = new Notifier<String>(null);

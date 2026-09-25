@@ -69,8 +69,24 @@ class LibraryView extends DomContainer {
   }
 
   function collections(assets:Array<Asset>, collection:String):Void {
+    if (collection == 'Years') {
+      var back = create('button', 'back-button'); back.textContent = '← Collections'; back.setAttribute('data-collection-back', ''); element.appendChild(back);
+      var heading = create('h1', 'page-title'); heading.textContent = 'Years'; element.appendChild(heading);
+      var years = new Map<String, Array<Asset>>();
+      for (asset in assets) {
+        var year = asset.takenAt.substr(0, 4);
+        if (year.length != 4) continue;
+        if (!years.exists(year)) years.set(year, []);
+        years.get(year).push(asset);
+      }
+      var orderedYears = [for (year in years.keys()) year];
+      orderedYears.sort(function(a, b) return Reflect.compare(b, a));
+      var list = create('div', 'collection-list'); element.appendChild(list);
+      for (year in orderedYears) addCollectionCard(list, 'Year:' + year, year, years.get(year));
+      return;
+    }
     if (collection == 'On this phone') {
-      var back = create('button', 'back-button'); back.textContent = '← Collections'; back.setAttribute('data-collection-back', 'true'); element.appendChild(back);
+      var back = create('button', 'back-button'); back.textContent = '← Collections'; back.setAttribute('data-collection-back', ''); element.appendChild(back);
       var heading = create('h1', 'page-title'); heading.textContent = 'On this phone'; element.appendChild(heading);
       var folders = new Map<String, Array<Asset>>();
       for (asset in assets) if (StringTools.startsWith(asset.collection, 'On this phone / ')) {
@@ -88,15 +104,18 @@ class LibraryView extends DomContainer {
       return;
     }
     if (collection != null) {
-      var back = create('button', 'back-button'); back.textContent = '← Collections'; back.setAttribute('data-collection-back', 'true'); element.appendChild(back);
-      var heading = create('h1', 'page-title'); heading.textContent = collection; element.appendChild(heading);
+      var parent = StringTools.startsWith(collection, 'Year:') ? 'Years' : StringTools.startsWith(collection, 'On this phone / ') ? 'On this phone' : '';
+      var back = create('button', 'back-button'); back.textContent = parent == '' ? '← Collections' : '← ' + parent; back.setAttribute('data-collection-back', parent); element.appendChild(back);
+      var heading = create('h1', 'page-title'); heading.textContent = StringTools.startsWith(collection, 'Year:') ? collection.substr(5) : collection; element.appendChild(heading);
       var grid = create('div', 'photo-grid'); element.appendChild(grid);
-      beginPaging(assets.filter(function(asset) return collection == 'Favourites' ? asset.favorite : asset.collection == collection), grid);
+      beginPaging(assets.filter(function(asset) return collection == 'Favourites' ? asset.favorite
+        : StringTools.startsWith(collection, 'Year:') ? asset.takenAt.substr(0, 4) == collection.substr(5) : asset.collection == collection), grid);
       return;
     }
     var heading = create('h1', 'page-title'); heading.textContent = 'Collections'; element.appendChild(heading);
     var list = create('div', 'collection-list'); element.appendChild(list);
     addCollectionCard(list, 'Favourites', 'Favourites', assets.filter(function(asset) return asset.favorite));
+    if (assets.length > 0) addCollectionCard(list, 'Years', 'Years', assets);
     var phone = assets.filter(function(asset) return StringTools.startsWith(asset.collection, 'On this phone / '));
     if (phone.length > 0) addCollectionCard(list, 'On this phone', 'On this phone', phone);
     var names = new Map<String, Array<Asset>>();

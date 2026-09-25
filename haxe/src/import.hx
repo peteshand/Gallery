@@ -14,6 +14,7 @@ import eva.IConfig;
 import eva.IContext;
 import eva.IInjector;
 
+import gallery.BuildInfo;
 import gallery.config.LogicConfig;
 import gallery.config.ModelConfig;
 import gallery.config.ServiceConfig;
@@ -62,6 +63,8 @@ import gallery.view.selection.SelectionBarView;
 import gallery.view.selection.SelectionBarViewMediator;
 import gallery.view.settings.SettingsView;
 import gallery.view.settings.SettingsViewMediator;
+import gallery.view.settings.menu.SettingsMenuView;
+import gallery.view.settings.menu.SettingsMenuViewMediator;
 import gallery.view.settings.phone.PhoneSourceView;
 import gallery.view.settings.phone.PhoneSourceViewMediator;
 import gallery.view.settings.source.SourceFoldersView;

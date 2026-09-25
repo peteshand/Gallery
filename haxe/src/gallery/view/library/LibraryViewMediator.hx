@@ -74,7 +74,11 @@ class LibraryViewMediator extends Mediator {
     }
     var collection = target.closest('[data-collection]');
     if (collection != null) gallery.collection.value = collection.getAttribute('data-collection');
-    if (target.closest('[data-collection-back]') != null) gallery.collection.value = null;
+    var back = target.closest('[data-collection-back]');
+    if (back != null) {
+      var parent = back.getAttribute('data-collection-back');
+      gallery.collection.value = parent == '' ? null : parent;
+    }
   }
 
   function onDragRequested(request:{id:String, pointerId:Int, x:Float, y:Float, immediate:Bool}):Void {
