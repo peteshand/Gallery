@@ -1,0 +1,29 @@
+{
+  "name": "gallery-prototype",
+  "private": true,
+  "version": "0.8.3",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-styles.mjs && haxe haxe/build.hxml",
+    "test:smoke": "node scripts/smoke-browser.mjs",
+    "test:ui": "node scripts/headless-ui.mjs",
+    "test:remote": "node scripts/headless-remote.mjs",
+    "start": "node server.mjs",
+    "dev": "npm run build && npm run start",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "release:windows": "powershell -NoProfile -File scripts/package-windows.ps1",
+    "release:windows:installer": "powershell -NoProfile -File scripts/package-windows-installer.ps1",
+    "release:android": "powershell -NoProfile -File scripts/package-android.ps1",
+    "release:android:compact": "powershell -NoProfile -File scripts/compact-android-debug.ps1",
+    "test:android-ui": "node scripts/headless-android.mjs",
+    "tauri:android:init": "tauri android init",
+    "tauri:android:dev": "tauri android dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.7.3"
+  }
+}

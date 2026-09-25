@@ -1,0 +1,39 @@
+:root{font-family:Arial,Helvetica,sans-serif;color:#f2f3f5;background:#15181b;font-synthesis:none;color-scheme:dark}
+#app{min-height:100dvh}
+*{box-sizing:border-box}
+body{margin:0}
+button,input{font:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid #a8c7fa;outline-offset:2px}
+.shell{min-height:100dvh;padding-bottom:calc(90px + env(safe-area-inset-bottom));background:#15181b}
+.android-native .shell{padding-bottom:calc(90px + max(env(safe-area-inset-bottom),20px))}
+.topbar{height:64px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;background:#15181b;position:sticky;top:0;z-index:5}
+.android-native .topbar{height:calc(64px + max(env(safe-area-inset-top),32px));padding-top:max(env(safe-area-inset-top),32px)}
+.brand{display:flex;align-items:center;gap:10px;font-size:23px;font-weight:500;letter-spacing:-.5px}
+.brand-icon{font-size:26px;color:#8ab4f8}
+.top-actions{display:flex;align-items:center;gap:12px}
+.icon-button,.avatar-button{border:0;background:transparent;width:40px;height:40px;border-radius:50%;font-size:26px;color:#f2f3f5}
+.icon-button:hover,.avatar-button:hover{background:#333942}
+.avatar-button{font-size:17px;font-weight:600;color:#fff;background:#586fba}
+.status{padding:10px 16px;text-align:center;color:#b7bdc8;font-size:13px}
+.status:empty{display:none}
+.status.error{color:#ffc5c1;white-space:pre-line}
+.bottom-nav{position:fixed;bottom:calc(12px + env(safe-area-inset-bottom));left:0;right:0;z-index:6;display:flex;justify-content:center;align-items:center;gap:8px;background:transparent;padding:0 12px;height:58px;pointer-events:none}
+.android-native .bottom-nav{bottom:calc(12px + max(env(safe-area-inset-bottom),20px))}
+.nav-pill{height:58px;min-width:0;display:flex;align-items:center;gap:2px;padding:5px;border-radius:32px;background:#1e2228;box-shadow:0 4px 16px #0005;pointer-events:auto}
+.nav-item{border:0;background:transparent;color:#c6cbd3;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 15px;height:48px;border-radius:27px;font-size:14px;white-space:nowrap}
+.nav-icon{display:grid;place-items:center;font-size:22px;line-height:1}
+.nav-item.active{color:#f6f7fa;font-weight:600;background:#3b4657}
+.search-fab{width:58px;height:58px;flex:none;border-radius:50%;background:#1e2228;box-shadow:0 4px 16px #0005;pointer-events:auto;padding:0}
+.search-fab .nav-icon{font-size:31px}
+.search-fab .search-label{display:none}
+.primary-button{background:#8ab4f8;color:#172437;border:0;border-radius:22px;padding:12px 20px;margin-top:12px}
+.secondary-button{border:1px solid #555e6b;background:#252a31;color:#a8c7fa;border-radius:20px;padding:9px 16px;font-size:14px}
+.hidden{display:none!important}
+.status:not(:empty){position:fixed;z-index:8;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);padding:12px 18px;background:#30343a;color:#fff;border-radius:10px;box-shadow:0 4px 16px #0005;text-align:left;line-height:1.4}
+.status.error:not(:empty){background:#9b2f2b;color:#fff}
+button:disabled{cursor:default;opacity:.55}
+.selection-header{width:100%;display:flex;align-items:center;gap:14px;font-size:17px}
+.selection-header button{border:0;background:transparent;color:#f2f3f5;font-size:30px;width:38px;height:38px}
+@media(min-width:700px){.topbar{padding:0 32px}.bottom-nav{left:50%;right:auto;transform:translateX(-50%);width:500px}}
+@media(max-width:699px){.shell{padding-top:max(env(safe-area-inset-top),32px)}.topbar,.android-native .topbar{height:0;padding:0;position:relative;background:transparent}.topbar .brand,.topbar #import-button{display:none}.topbar .top-actions{position:absolute;right:14px;top:10px;z-index:6}.topbar .avatar-button{background:#232832dd;box-shadow:0 2px 8px #0006}.shell.selection-active .topbar{height:56px}.shell.selection-active .topbar #selection-header{padding:0 16px}.content{max-width:none}.nav-pill{flex:0 1 62vw;max-width:270px}.nav-pill .nav-item{flex:1;padding:0 10px}.search-fab{flex:0 0 58px}}

@@ -1,0 +1,12 @@
+.story-carousel{width:100%;overflow:hidden;padding:0 0 21px}
+.story-track{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:0 14px}
+.story-track::-webkit-scrollbar{display:none}
+.story-card{position:relative;flex:none;width:min(42.5vw,220px);height:min(57vw,290px);border:0;padding:0;overflow:hidden;border-radius:22px;background:#33383f;color:#fff;text-align:left;scroll-snap-align:start}
+.story-media{position:absolute;inset:0}
+.story-collage{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:2px}
+.story-cover{display:block}
+.story-cover .story-image{display:block;width:100%;height:100%}
+.story-image{background:#34383e;background-position:center;background-size:cover}
+.story-card::after{content:"";position:absolute;inset:35% 0 0;background:linear-gradient(transparent,#000a);pointer-events:none}
+.story-title{position:absolute;z-index:1;left:14px;right:12px;bottom:15px;font-size:19px;line-height:1.05;font-weight:700;letter-spacing:-.3px;text-shadow:0 1px 5px #0008}
+@media(min-width:700px){.story-card{width:220px;height:290px}.story-track{padding:0 24px}}

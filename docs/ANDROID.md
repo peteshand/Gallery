@@ -1,0 +1,25 @@
+# Android prototype
+
+The versioned ARM64 debug APKs are in `dist/`. For manual transfer, use `Gallery-0.8.3-Android-arm64-debug-compact.apk`. It requires Android 7.0 or newer (API 24) and is signed with the Android debug key. Version 0.8.3 organises phone folders in Collections and refines the grid. `dist/Gallery-0.8.3-SHA256SUMS.txt` records its SHA-256 hash. The desktop folder importer remains hidden on Android. Do not use the 0.7.1 or 0.7.2 compact APKs: they failed installation on the test phone.
+
+## Build on this Windows workspace
+
+`npm run release:android` builds the Haxe UI and Android native app, then copies a versioned APK into `dist/`. `npm run release:android:compact` verifies the Gradle APK's signature, compression, and alignment, then copies it byte for byte to a compact alias. The native debug information is stripped during the Rust build. Run the alias command after the build. The scripts expect the workspace-local JDK, SDK, NDK, Rust ARM64 target, and Gradle cache under `.tools/`. The Android project is in `src-tauri/gen/android`. A generated Gradle task was corrected to invoke this project's `@tauri-apps/cli/tauri.js` by absolute path. Re-running `tauri android init` may overwrite that correction.
+
+Gallery's `MainActivity` initializes the native keyring context before Tauri starts the WebView. Keep that call and `io/crates/keyring/Keyring.kt` when regenerating the Android project. Compilation verifies the JNI symbol and Kotlin binding; credential saving and retrieval still need the phone acceptance run.
+
+If the phone says the APK cannot be installed, confirm the downloaded file is the **0.8.3 compact** build, allow the file manager under **Settings → Apps → Special app access → Install unknown apps**, and check whether Gallery is already installed. Do not uninstall an existing Gallery until its local settings have been recorded. For an exact Android failure code, connect the phone to a computer with USB debugging enabled and run `adb install -r Gallery-0.8.3-Android-arm64-debug-compact.apk` from the directory containing the APK. Send the `INSTALL_FAILED_*` result without any credentials.
+
+## Phone acceptance run
+
+1. Copy the compact APK to an ARM64 Android phone, open it in Files, and allow installation from that file manager if Android asks. This new debug signer may trigger a Google Play Protect warning; on the user's CMF Phone 2 Pro, **More details → Install anyway** is available. Use that confirmation only for the Gallery APK you just transferred, then open **Gallery**. USB is optional: when the phone is connected to this PC later, `adb devices -l` and `adb install -r <path>` provide a repeatable install path.
+2. Confirm the app opens to the cloud-first gallery and that the desktop folder picker is absent. Open **Settings → Photos on this phone**, grant access, then scan. Phone photos should appear in the same chronological grid as cloud photos. With selected-photo access, only the Android-approved set should appear.
+3. Open **Settings → Cloud storage**. Enter the dedicated bucket, region, `gallery/` prefix, and IAM credentials directly on the phone. Do not send credentials in chat. Save and run **Test connection**.
+4. Leave **Auto back up photos** off. Long press one phone photo and use **Back up**, then select several and back them up. Confirm the original, preview, thumbnail, and metadata appear on the other device after refreshing its cloud catalogue. A repeated backup should not create duplicate objects.
+5. Grant access to all photos, enable automatic backup with **Wi-Fi only**, and save. New photos should be picked up while the app is open. Enable **Continue backup in background**, close the app, and allow Android's scheduled work to run. Verify that a cellular-only connection does not upload while Wi-Fi only is on. Turn automatic backup off again and verify no new photo uploads.
+6. Refresh cloud photos if the initial refresh has not finished. Confirm the 111-photo test collection appears. Scroll to load thumbnails and open several photos to load previews. The original should download only when **Download original** is chosen.
+7. Set the photo cache limit to 0.1 GB, browse, and verify the cache use stays below that limit. Turn on airplane mode, close and reopen the app, and confirm previously viewed thumbnails and previews still open. Restore the network.
+8. Change a favourite on the phone, refresh cloud photos, then refresh the Windows gallery and confirm the change appears. Change it back on Windows and refresh the phone. Repeat once with one device briefly offline.
+9. Rotate or remove the phone's credentials and confirm Gallery reports the connection state without exposing the secret. Capture any crash with `adb logcat` and note the photo ID and action, without including credentials or private image data.
+
+Version 0.7.6 was installed on the phone and the user confirmed S3 access and cloud photo loading. Version 0.8.3 camera-roll discovery and backup need phone acceptance. The remaining checks for offline cache, credential persistence, and favourite convergence are also still required before calling Android delivery verified.

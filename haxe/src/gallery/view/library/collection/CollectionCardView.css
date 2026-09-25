@@ -1,0 +1,7 @@
+.collection-card{border:0;background:transparent;color:#f1f3f5;text-align:left;padding:0;display:flex;flex-direction:column;gap:5px;min-width:0}
+.collection-cover{aspect-ratio:1;width:100%;background:#2c3037;border-radius:22px;overflow:hidden;display:block}
+.collection-cover.collection-collage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:2px}
+.collection-cover img{width:100%;height:100%;display:block;object-fit:cover;opacity:0}
+.collection-cover img.loaded{opacity:1}
+.collection-card strong{font-size:15px;margin-top:6px}
+.collection-card .collection-count{font-size:13px;color:#aeb4be}

@@ -1,0 +1,6 @@
+-cp haxe/src
+-cp haxe/vendor
+-main Main
+-js web/app.js
+-D js-es=6
+-dce full
