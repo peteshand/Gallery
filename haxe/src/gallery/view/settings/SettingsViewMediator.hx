@@ -6,11 +6,13 @@ class SettingsViewMediator extends Mediator {
   @inject public var gallery:GalleryModel;
   @inject public var library:LibraryModel;
   @inject public var cloud:CloudModel;
+  @inject public var media:MediaModel;
   @inject public var mediatorMap:IMediatorMap;
   var editing = false;
 
   override public function initialize():Void {
     mediatorMap.map(BackupView).toMediator(BackupViewMediator);
+    mediatorMap.map(SourceFoldersView).toMediator(SourceFoldersViewMediator);
     mediatorMap.map(PhoneSourceView).toMediator(PhoneSourceViewMediator);
     view.initialize();
     gallery.settingsOpen.add(function(open) {
@@ -23,6 +25,7 @@ class SettingsViewMediator extends Mediator {
     library.importErrors.add(view.showImportErrors).fireOnAdd();
     gallery.canChooseSource.add(view.showChoose).fireOnAdd();
     cloud.available.add(view.showNative).fireOnAdd();
+    media.thumbnailOnly.add(function(enabled) view.thumbnailOnlyInput.checked = enabled).fireOnAdd();
     cloud.connection.add(function(_) presentConnection());
     cloud.busy.add(function(_) presentConnection());
     cloud.message.add(function(message) {
@@ -33,6 +36,7 @@ class SettingsViewMediator extends Mediator {
     cloud.catalogBusy.add(function(busy) view.cloudRefresh.toggleAttribute('disabled', busy)).fireOnAdd();
     view.closeButton.addEventListener('click', function(_) gallery.settingsOpen.value = false);
     view.sourceChoose.addEventListener('click', function(_) gallery.chooseSourceRequested.dispatch());
+    view.thumbnailOnlyInput.addEventListener("change", function(_) media.thumbnailOnly.value = view.thumbnailOnlyInput.checked);
     view.sourceCancel.addEventListener('click', function(_) library.cancelImportRequested.dispatch());
     view.cloudForm.addEventListener('submit', save);
     view.cloudRemove.addEventListener('click', function(_) cloud.removeRequested.dispatch());

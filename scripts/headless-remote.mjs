@@ -74,6 +74,7 @@ try {
       throw Error('Unexpected native command '+command);
     }},dialog:{open:async()=>null}};`;
   await command('Page.addScriptToEvaluateOnNewDocument', { source: bootstrap });
+  await command("Page.addScriptToEvaluateOnNewDocument", {source:"localStorage.removeItem('gallery.thumbnailOnly');"});
   await command('Page.navigate', { url: `http://127.0.0.1:${port}/` });
   await sleep(1200);
   const count = await evaluate(`document.querySelectorAll('.photo-tile').length`);
@@ -90,6 +91,12 @@ try {
   await sleep(100);
   const savedLimit = await evaluate(`window.__cacheLimit`);
   if (Number(limit) !== 2 || Math.abs(savedLimit - 1073741824) > 1) throw Error('Cache setting did not persist in UI');
+  const thumbnailDefault = await evaluate(`document.querySelector("#thumbnail-only").checked`);
+  await evaluate(`document.querySelector("#thumbnail-only").click();document.querySelector("#settings-close").click();document.querySelectorAll(".photo-tile")[1].click()`);
+  await sleep(300);
+  const previewAfterThumbnailOnly = await evaluate(`window.__mediaCalls.filter(call=>call.variant==="preview").length`);
+  const thumbnailOnlySaved = await evaluate(`localStorage.getItem("gallery.thumbnailOnly")`);
+  if (thumbnailDefault || previewAfterThumbnailOnly !== previewCalls || thumbnailOnlySaved !== "true") throw Error("Thumbnail-only mode downloaded a preview or failed to persist");
   if (exceptions.length > 0) throw Error(exceptions.join('\n'));
   console.log(JSON.stringify({ tiles:count, thumbnailCalls, previewCalls, cacheGB:savedLimit/1073741824,
     catalogRefreshes:await evaluate(`window.__catalogRefreshes`) }));

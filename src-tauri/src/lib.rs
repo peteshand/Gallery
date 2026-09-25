@@ -295,7 +295,6 @@ fn import_directory(app: AppHandle, source: PathBuf) -> Result<ImportResult, Str
 async fn import_source(app: AppHandle, source: Option<String>) -> Result<ImportResult, String> {
     let source = source
         .map(PathBuf::from)
-        .or_else(configured_source)
         .ok_or_else(|| "Choose a photo folder in Settings before importing".to_string())?;
     let runner = app.state::<archive_import::ImportRunner>();
     if !runner.begin() { return Err("An import is already running".into()); }
@@ -325,18 +324,10 @@ fn list_import_errors(app: AppHandle) -> Result<Vec<archive_import::ImportError>
     archive_import::list_errors(&directory.join("gallery.sqlite"))
 }
 
-fn configured_source() -> Option<PathBuf> {
-    std::env::var_os("GALLERY_SOURCE").map(PathBuf::from).or_else(|| {
-        if cfg!(target_os = "windows") { Some(PathBuf::from(r"I:\Photos\Best of Poe 2")) }
-        else { None }
-    })
-}
-
 #[tauri::command]
 fn get_default_source() -> Option<String> {
-    configured_source().map(|path| path.to_string_lossy().into_owned())
+    std::env::var_os("GALLERY_SOURCE").map(|path| PathBuf::from(path).to_string_lossy().into_owned())
 }
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = log::set_logger(&STDERR_LOGGER);

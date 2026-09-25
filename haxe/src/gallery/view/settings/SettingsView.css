@@ -1,21 +1,28 @@
-.settings{position:fixed;inset:0;z-index:30;background:#0005;display:flex;justify-content:end}
-.settings-card{background:#1e2228;color:#f2f3f5;width:min(100%,420px);padding:20px;box-shadow:-4px 0 20px #0006}
-.android-native .settings-card{padding-top:calc(20px + max(env(safe-area-inset-top),32px));padding-bottom:calc(20px + max(env(safe-area-inset-bottom),20px))}
-.settings-title{display:flex;align-items:center;justify-content:space-between}
-.settings-title h2{font-size:22px;font-weight:500}
-.settings-title button{border:0;background:transparent;color:#f2f3f5;font-size:28px}
-.settings-card h3{font-size:15px;margin-top:30px}
+.settings{position:fixed;inset:0;z-index:30;background:#1e2228;color:#f2f3f5;overflow-y:auto;overscroll-behavior:contain}
+.settings-card{width:min(100%,900px);min-height:100dvh;margin:0 auto;padding:0 28px 56px;color:#f2f3f5}
+.android-native .settings-card{padding-top:calc(20px + max(env(safe-area-inset-top),32px));padding-bottom:calc(32px + max(env(safe-area-inset-bottom),20px))}
+.settings-title{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;min-height:72px;margin:0 -28px 20px;padding:0 28px;background:#1e2228;border-bottom:1px solid #343a43}
+.settings-title h2{font-size:26px;font-weight:500;margin:0}
+.settings-title button{border:0;background:#303640;color:#f2f3f5;font-size:27px;width:44px;height:44px;border-radius:50%;cursor:pointer}
+.settings-title button:hover{background:#414a57}
+.settings-card h3{font-size:17px;margin:30px 0 10px}
 .settings-card p{color:#b7bdc8;font-size:14px;line-height:1.5}
-.settings-card{overflow-y:auto;max-height:100dvh}
 .settings-card label{display:block;margin:14px 0 5px;color:#d4d9e0;font-size:13px;font-weight:600}
-.settings-card input{display:block;width:100%;height:42px;padding:8px 11px;border:1px solid #555e6b;border-radius:9px;background:#292e35;color:#f2f3f5}
-.cloud-buttons{display:flex;align-items:center;gap:12px;margin-top:4px}
+.settings-card input:not([type=checkbox]){display:block;width:100%;height:44px;padding:8px 11px;border:1px solid #555e6b;border-radius:10px;background:#292e35;color:#f2f3f5}
+.settings-card input:focus-visible,.settings-card button:focus-visible{outline:2px solid #8ab4f8;outline-offset:2px}
+.settings-card #cloud-form,.settings-card .cloud-extras{max-width:650px}
+.cloud-buttons{display:flex;align-items:center;gap:12px;margin-top:15px;flex-wrap:wrap}
 .cloud-buttons .primary-button{margin-top:0}
 .settings-card #cloud-state{color:#f2f3f5}
 .settings-card #cloud-message{min-height:20px}
-.cloud-buttons{flex-wrap:wrap}
 .settings-card input[readonly]{background:#303640;color:#b7bdc8}
 .settings-card #source-errors{margin-top:12px;font-size:13px}
-.settings-card #source-errors summary{cursor:pointer;color:#a50e0e}
+.settings-card #source-errors summary{cursor:pointer;color:#f28b82}
 .settings-card #source-error-list{padding-left:20px;overflow-wrap:anywhere}
 .settings-card #source-error-list li{margin:8px 0}
+.setting-toggle{display:flex!important;align-items:flex-start;gap:12px;padding:14px;border:1px solid #4b5562;border-radius:12px;background:#292e35;cursor:pointer}
+.setting-toggle input{width:19px;height:19px;flex:none;margin:2px 0 0;accent-color:#8ab4f8}
+.setting-toggle span{display:grid;gap:4px}
+.setting-toggle strong{font-size:14px;color:#f2f3f5}
+.setting-toggle small{font-size:12px;line-height:1.4;color:#b7bdc8;font-weight:400}
+@media(max-width:600px){.settings-card{padding:0 20px 48px}.settings-title{margin:0 -20px 18px;padding:0 20px}}

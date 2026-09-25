@@ -69,7 +69,7 @@ class LibraryViewMediator extends Mediator {
     if (importControl != null) {
       if (importControl.textContent == 'View collections') gallery.tab.value = 'Collections';
       else if (gallery.cloudOnlyDevice.value) gallery.settingsOpen.value = true;
-      else library.importRequested.dispatch(gallery.sourcePath.value);
+      else gallery.importAllSourcesRequested.dispatch();
       return;
     }
     var collection = target.closest('[data-collection]');

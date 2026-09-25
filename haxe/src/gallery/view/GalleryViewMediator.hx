@@ -13,7 +13,7 @@ class GalleryViewMediator extends Mediator {
     mediatorMap.map(ViewerView).toMediator(ViewerViewMediator);
     mediatorMap.map(SettingsView).toMediator(SettingsViewMediator);
     view.initialize();
-    view.importButton.addEventListener('click', function(_) library.importRequested.dispatch(gallery.sourcePath.value));
+    view.importButton.addEventListener('click', function(_) gallery.importAllSourcesRequested.dispatch());
     view.settingsButton.addEventListener('click', function(_) gallery.settingsOpen.value = true);
     view.selectionCancel.addEventListener('click', function(_) gallery.selectedIds.value = []);
     view.element.querySelector('.bottom-nav').addEventListener('click', function(event:js.html.MouseEvent) {

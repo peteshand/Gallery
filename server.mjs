@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 const root = resolve(import.meta.dirname);
 const webRoot = join(root, 'web');
-const source = resolve(process.env.GALLERY_SOURCE || 'I:\\Photos\\Best of Poe 2');
+const source = process.env.GALLERY_SOURCE ? resolve(process.env.GALLERY_SOURCE) : null;
 const dataRoot = join(root, 'data');
 mkdirSync(dataRoot, { recursive: true });
 const dbPath = process.env.GALLERY_DB === ':memory:' ? ':memory:' : resolve(process.env.GALLERY_DB || join(dataRoot, 'best-of-poe.sqlite'));
@@ -82,7 +82,7 @@ function metadataFor(directory) {
 }
 
 function importSource() {
-  if (!existsSync(source)) throw new Error(`Import source is missing: ${source}`);
+  if (!source || !existsSync(source)) throw new Error(`Import source is missing: ${source}`);
   const sidecars = metadataFor(source);
   const files = readdirSync(source, { withFileTypes: true })
     .filter(entry => entry.isFile() && /\.(jpe?g|png|webp|heic|gif)$/i.test(entry.name));

@@ -8,6 +8,7 @@ const files = [
   'haxe/src/gallery/view/library/ThumbnailView.css',
   'haxe/src/gallery/view/viewer/ViewerView.css',
   'haxe/src/gallery/view/settings/SettingsView.css',
+  'haxe/src/gallery/view/settings/source/SourceFoldersView.css',
   'haxe/src/gallery/view/settings/BackupView.css',
   'haxe/src/gallery/view/settings/phone/PhoneSourceView.css',
   'haxe/src/gallery/view/selection/SelectionBarView.css'

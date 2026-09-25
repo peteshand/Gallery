@@ -61,16 +61,18 @@ try {
   await command('Network.setCacheDisabled', { cacheDisabled: true });
   if (process.env.GALLERY_MOCK_TAURI === '1') {
     const sampleSource = String.raw`I:\Photos\Best of Poe 2`;
+    const secondSource = String.raw`I:\Photos\2003`;
     const source = `let cloud = {configured:false,credentialsAvailable:false,bucket:'',region:'',endpoint:'',prefix:'',maskedKeyId:'',lastVerifiedAt:null};
     let syncRunning = false;
     let syncCancelled = false;
     window.__selectedSyncCalls = [];
+    window.__importCalls = [];
     window.__TAURI__ = {
       core: {
         invoke: async (command, args = {}) => {
           let response;
           if (command === 'list_assets') response = await fetch('/api/assets');
-          else if (command === 'import_source') response = await fetch('/api/import', { method: 'POST' });
+          else if (command === 'import_source') { window.__importCalls.push(args.source); response = await fetch('/api/import', { method: 'POST' }); }
           else if (command === 'set_favorite') response = await fetch('/api/assets/' + args.id + '/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ favorite: args.favorite }) });
           else if (command === 'get_default_source') return ${JSON.stringify(sampleSource)};
           else if (command === 'list_import_errors') return [];
@@ -99,10 +101,11 @@ try {
         },
         convertFileSrc: path => path
       },
-      dialog: { open: async () => ${JSON.stringify(sampleSource)} }
+      dialog: { open: async () => ${JSON.stringify(secondSource)} }
     };`;
     await command('Page.addScriptToEvaluateOnNewDocument', { source });
   }
+  await command("Page.addScriptToEvaluateOnNewDocument", {source: "localStorage.removeItem('gallery.sourcePaths');localStorage.removeItem('gallery.sourcePath');localStorage.removeItem('gallery.thumbnailOnly');"});
   await command('Emulation.setDeviceMetricsOverride', { width: viewportWidth, height: 844, deviceScaleFactor: 1, mobile: true });
   await command('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
   exceptions.length = 0;
@@ -184,11 +187,34 @@ try {
   await evaluate(`document.querySelector('#settings-button').click()`);
   const settings = await evaluate(`!document.querySelector('#settings').classList.contains('hidden')`);
   let chosenSource = null;
+  let folderSettings = null;
   let cloudResult = null;
   if (process.env.GALLERY_MOCK_TAURI === '1') {
     await evaluate(`document.querySelector('#source-choose').click()`);
     await sleep(100);
-    chosenSource = await evaluate(`localStorage.getItem('gallery.sourcePath')`);
+    chosenSource = JSON.parse(await evaluate(`localStorage.getItem("gallery.sourcePaths")`));
+    const layout = JSON.parse(await evaluate(`JSON.stringify({width:document.querySelector("#settings").getBoundingClientRect().width,viewport:innerWidth,thumbnailDefault:document.querySelector("#thumbnail-only").checked,folderCount:document.querySelectorAll(".source-folder").length})`));
+    await evaluate(`document.querySelector("#thumbnail-only").click()`);
+    const thumbnailSaved = await evaluate(`localStorage.getItem("gallery.thumbnailOnly")`);
+    await evaluate(`document.querySelector("#thumbnail-only").click()`);
+    folderSettings = {layout,thumbnailSaved};
+    for (let attempt=0; attempt<50; attempt++) {
+      if (await evaluate(`!document.querySelector("#source-scan-all").disabled`)) break;
+      await sleep(200);
+    }
+    await evaluate(`document.querySelector("#source-scan-all").click()`);
+    for (let attempt=0; attempt<60; attempt++) {
+      if ((await evaluate(`window.__importCalls.length`)) >= 4) break;
+      await sleep(200);
+    }
+    for (let attempt=0; attempt<60; attempt++) {
+      if (await evaluate(`!document.querySelector("#source-scan-all").disabled`)) break;
+      await sleep(200);
+    }
+    await sleep(300);
+    folderSettings.scanCalls = JSON.parse(await evaluate(`JSON.stringify(window.__importCalls.slice(-2))`));
+    await evaluate(`document.querySelector('[data-source-index="1"]').click()`);
+    folderSettings.afterRemove = JSON.parse(await evaluate(`localStorage.getItem("gallery.sourcePaths")`));
     await evaluate(`(() => {
       document.querySelector('#cloud-bucket').value='test-gallery-bucket';
       document.querySelector('#cloud-region').value='ap-southeast-2';
@@ -271,10 +297,10 @@ try {
     const removed = await evaluate(`document.querySelector('#cloud-state').textContent`);
     cloudResult = { saved, tested, info, afterHold, afterTap, selectedSyncCalls, selectionCleared, dragRange, edgeScrolled, desktop, desktopHold, normalTouchScrolled, realTouchRange, realTouchExpected: touchDrag.to - 20 + 1, realTouchTap, syncVisible, syncText, cancelLabel, cancelledText, resumeLabel, replacing, removed };
   }
-  console.log('interactions', JSON.stringify({ memoryTitle, swipedTitle, viewer: JSON.parse(viewer), favorite, edgeClosedViewer, swipeClosedViewer, collections, search: JSON.parse(search), settings, chosenSource, cloudResult }));
+  console.log('interactions', JSON.stringify({ memoryTitle, swipedTitle, viewer: JSON.parse(viewer), favorite, edgeClosedViewer, swipeClosedViewer, collections, search: JSON.parse(search), settings, chosenSource, folderSettings, cloudResult }));
   console.log('exceptions', JSON.stringify(exceptions));
   ws.close();
-  if (exceptions.length || initialCount !== 0 || loadedCount !== 111 || page.viewport !== viewportWidth || page.width !== viewportWidth || grid.before !== 5 || grid.zoomed !== 4 || !grid.placeholderHidden || justified.mode !== 'flex' || justified.rows < 2 || !justified.filled || !justified.sameHeight || timeline.grids !== 1 || timeline.dateHeadings !== 0 || !timeline.chronological || visual.background !== 'rgb(21, 24, 27)' || visual.stories !== 2 || visual.storyHeading !== 0 || visual.navBackground !== 'rgba(0, 0, 0, 0)' || !visual.syncedBadgeHidden || memoryTitle === swipedTitle || !edgeClosedViewer || !swipeClosedViewer || collections < 1 || !settings || (process.env.GALLERY_MOCK_TAURI === '1' && (syncBadges !== 111 || chosenSource !== String.raw`I:\Photos\Best of Poe 2` || !cloudResult.saved.state.includes('••••1234') || cloudResult.saved.key !== '••••1234' || !cloudResult.saved.secretReadonly || cloudResult.saved.secret.includes('not-a-real-secret') || cloudResult.saved.stored || !cloudResult.tested.includes('S3 access verified') || !cloudResult.info.includes('Not backed up') || cloudResult.afterHold !== '1 selected' || cloudResult.afterTap !== '2 selected' || JSON.stringify(cloudResult.selectedSyncCalls) !== '[1,2]' || !cloudResult.selectionCleared || !cloudResult.syncVisible || !cloudResult.syncText.includes('Uploading') || cloudResult.replacing.key !== '' || cloudResult.replacing.secret !== '' || cloudResult.removed !== 'No S3 connection saved'))) process.exitCode = 1;
+  if (exceptions.length || initialCount !== 0 || loadedCount !== 111 || page.viewport !== viewportWidth || page.width !== viewportWidth || grid.before !== 5 || grid.zoomed !== 4 || !grid.placeholderHidden || justified.mode !== 'flex' || justified.rows < 2 || !justified.filled || !justified.sameHeight || timeline.grids !== 1 || timeline.dateHeadings !== 0 || !timeline.chronological || visual.background !== 'rgb(21, 24, 27)' || visual.stories !== 2 || visual.storyHeading !== 0 || visual.navBackground !== 'rgba(0, 0, 0, 0)' || !visual.syncedBadgeHidden || memoryTitle === swipedTitle || !edgeClosedViewer || !swipeClosedViewer || collections < 1 || !settings || (process.env.GALLERY_MOCK_TAURI === '1' && (syncBadges !== 111 || !Array.isArray(chosenSource) || chosenSource.length !== 2 || !chosenSource.includes(String.raw`I:\Photos\Best of Poe 2`) || !chosenSource.includes(String.raw`I:\Photos\2003`) || folderSettings.layout.width !== folderSettings.layout.viewport || folderSettings.layout.folderCount !== 2 || folderSettings.layout.thumbnailDefault || folderSettings.thumbnailSaved !== "true" || JSON.stringify(folderSettings.scanCalls) !== JSON.stringify([String.raw`I:\Photos\Best of Poe 2`,String.raw`I:\Photos\2003`]) || folderSettings.afterRemove.length !== 1 || !cloudResult.saved.state.includes('••••1234') || cloudResult.saved.key !== '••••1234' || !cloudResult.saved.secretReadonly || cloudResult.saved.secret.includes('not-a-real-secret') || cloudResult.saved.stored || !cloudResult.tested.includes('S3 access verified') || !cloudResult.info.includes('Not backed up') || cloudResult.afterHold !== '1 selected' || cloudResult.afterTap !== '2 selected' || JSON.stringify(cloudResult.selectedSyncCalls) !== '[1,2]' || !cloudResult.selectionCleared || !cloudResult.syncVisible || !cloudResult.syncText.includes('Uploading') || cloudResult.replacing.key !== '' || cloudResult.replacing.secret !== '' || cloudResult.removed !== 'No S3 connection saved'))) process.exitCode = 1;
   if (cloudResult && (cloudResult.cancelLabel !== 'Cancel sync' || !cloudResult.cancelledText.includes('Backup stopped') || cloudResult.resumeLabel !== 'Sync now')) process.exitCode = 1;
   if (cloudResult && (!cloudResult.dragRange.complete || cloudResult.dragRange.selected.length < 2 || !cloudResult.edgeScrolled || cloudResult.desktop.additive !== '2 selected' || !cloudResult.desktop.range || cloudResult.desktop.rangeCount !== '5 selected' || cloudResult.desktop.macAdditive !== '6 selected' || !cloudResult.desktop.opened || !cloudResult.desktop.cleared || cloudResult.desktopHold !== '1 selected' || !cloudResult.normalTouchScrolled || cloudResult.realTouchRange !== `${cloudResult.realTouchExpected} selected` || cloudResult.realTouchTap !== `${cloudResult.realTouchExpected + 1} selected`)) process.exitCode = 1;
 } finally {

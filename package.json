@@ -1,7 +1,7 @@
 {
   "name": "gallery-prototype",
   "private": true,
-  "version": "0.8.4",
+  "version": "0.9.1",
   "type": "module",
   "scripts": {
     "build": "node scripts/build-styles.mjs && haxe haxe/build.hxml",
@@ -16,7 +16,6 @@
     "release:windows:installer": "powershell -NoProfile -File scripts/package-windows-installer.ps1",
     "release:android": "powershell -NoProfile -File scripts/package-android.ps1",
     "release:android:compact": "powershell -NoProfile -File scripts/compact-android-debug.ps1",
-    "release:macos": "bash scripts/package-macos.sh",
     "test:android-ui": "node scripts/headless-android.mjs",
     "tauri:android:init": "tauri android init",
     "tauri:android:dev": "tauri android dev"

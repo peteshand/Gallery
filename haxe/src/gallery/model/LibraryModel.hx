@@ -10,6 +10,7 @@ class LibraryModel {
   public var importErrors = new Notifier<Array<ImportError>>([]);
   public var importErrorsRequested = new Signal();
   public var importRequested = new Signal1<Null<String>>();
+  public var importSourcesRequested = new Signal1<Array<String>>();
   public var favoriteRequested = new Signal1<Asset>();
   public var refreshRequested = new Signal();
   public var cancelImportRequested = new Signal();
