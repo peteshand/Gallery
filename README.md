@@ -2,11 +2,11 @@
 
 Gallery is a personal photo prototype built with Haxe/Eva, Tauri 2, Rust, SQLite, and private S3 storage. The initial test set is the 111-photo `I:\Photos\Best of Poe 2` Takeout folder. Source photos are read only. The [delivery plan](PLAN.md) tracks the remaining work.
 
-## Current 0.9.1 builds
+## Current builds
 
-Versioned Windows and Android packages are generated in the local `dist/` directory, which is excluded from Git. The new packages are `Gallery-0.9.1-Windows-Setup.exe` and `Gallery-0.9.1-Android-arm64-debug-compact.apk`; their hashes are in the local `Gallery-0.9.1-SHA256SUMS.txt`. See [Android instructions](docs/ANDROID.md) and [release history](docs/VERSIONS.md).
+Versioned Windows and Android packages are generated in the local `dist/` directory, which is excluded from Git. The latest Windows standalone is `Gallery-0.10.1-Windows.exe`. The Windows installer and Android APK remain at 0.10.0; the backup-count fix will be included when those packages are next built. See [Android instructions](docs/ANDROID.md) and [release history](docs/VERSIONS.md).
 
-Desktop Settings now manages multiple source folders, scans them in sequence, and lets you opt into thumbnail-only viewing. Settings fills the window on both desktop and mobile. Import and cloud backup remain separate explicit actions.
+Desktop Settings now manages multiple source folders, scans them in sequence, and lets you opt into thumbnail-only viewing. Settings fills the window on both desktop and mobile, with the installed version shown beside the Settings heading and category pages for each group. Collections can also be browsed by year. Import and cloud backup remain separate explicit actions.
 
 Android now groups phone photos by source folder in Collections, keeps application folders such as WhatsApp out of the main Photos feed, shows collection covers, and uses a filled, justified layout at the largest grid setting. Phone acceptance of this build is pending. macOS compilation and testing require a Mac.
 

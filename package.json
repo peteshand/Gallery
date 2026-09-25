@@ -1,10 +1,10 @@
 {
   "name": "gallery-prototype",
   "private": true,
-  "version": "0.9.1",
+  "version": "0.10.1",
   "type": "module",
   "scripts": {
-    "build": "node scripts/build-styles.mjs && haxe haxe/build.hxml",
+    "build": "node scripts/build-styles.mjs && node scripts/build-info.mjs && haxe haxe/build.hxml",
     "test:smoke": "node scripts/smoke-browser.mjs",
     "test:ui": "node scripts/headless-ui.mjs",
     "test:remote": "node scripts/headless-remote.mjs",

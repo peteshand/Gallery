@@ -106,7 +106,35 @@ fn prepare_schema(db: &Connection) -> Result<(), String> {
 
 fn target(config: &cloud::S3Config) -> String { format!("{}/{}", config.bucket, config.prefix) }
 
+fn reconcile_remote(db: &Connection, target: &str) -> Result<(), String> {
+    // A cloud manifest is written last, after all three media objects. A matching
+    // version-2 manifest proves that this exact content hash is already backed up.
+    db.execute("INSERT OR IGNORE INTO sync_items
+        (asset_id,target,state,original_done,preview_done,thumbnail_done,manifest_done,synced_at,derivative_version)
+        SELECT a.id,?1,'synced',1,1,1,1,datetime('now'),2
+        FROM assets a JOIN remote_assets r ON r.asset_id=a.id
+        WHERE a.source_path<>'' AND r.manifest_version=2", params![target])
+        .map_err(|error| format!("Could not reconcile cloud backups: {error}"))?;
+    db.execute("UPDATE sync_items SET state='synced',original_done=1,preview_done=1,
+        thumbnail_done=1,manifest_done=1,synced_at=datetime('now'),error=NULL,derivative_version=2
+        WHERE target=?1 AND state='not_synced' AND original_done=0 AND preview_done=0
+        AND thumbnail_done=0 AND manifest_done=0
+        AND asset_id IN (SELECT a.id FROM assets a JOIN remote_assets r ON r.asset_id=a.id
+            WHERE a.source_path<>'' AND r.manifest_version=2)", params![target])
+        .map_err(|error| format!("Could not reconcile cloud backups: {error}"))?;
+    Ok(())
+}
+
+fn active_target(db: &Connection) -> Result<Option<String>, String> {
+    let exists: bool = db.query_row("SELECT 1 FROM sqlite_master WHERE type='table' AND name='s3_connection'",
+        [], |_| Ok(true)).optional().map_err(|error| error.to_string())?.unwrap_or(false);
+    if !exists { return Ok(None); }
+    db.query_row("SELECT bucket || '/' || prefix FROM s3_connection WHERE id=1", [], |row| row.get(0))
+        .optional().map_err(|error| error.to_string())
+}
+
 fn enqueue(db: &Connection, target: &str) -> Result<(), String> {
+    reconcile_remote(db, target)?;
     db.execute("INSERT OR IGNORE INTO sync_items (asset_id, target, state)
         SELECT id, ?1, 'not_synced' FROM assets WHERE source_path<>''", params![target])
         .map_err(|_| "Could not queue imported photos".to_string())?;
@@ -121,6 +149,7 @@ fn enqueue(db: &Connection, target: &str) -> Result<(), String> {
 
 fn read_status(db: &Connection, running: bool) -> Result<SyncStatus, String> {
     prepare_schema(db)?;
+    if let Some(target) = active_target(db)? { reconcile_remote(db, &target)?; }
     let (mut total, mut not_synced, preparing, uploading, synced, failed): (i64,i64,i64,i64,i64,i64) = db.query_row(
         "SELECT COUNT(*),
           COALESCE(SUM(CASE WHEN COALESCE(s.state,'not_synced')='not_synced' THEN 1 ELSE 0 END),0),
@@ -518,6 +547,31 @@ mod tests {
         prepare_schema(&db).unwrap();
         let pending: i64 = db.query_row("SELECT COUNT(*) FROM sync_items WHERE state='not_synced'", [], |row| row.get(0)).unwrap();
         assert_eq!(pending, 1);
+    }
+
+    #[test]
+    fn imported_local_photo_reuses_matching_cloud_manifest() {
+        let root = std::env::temp_dir().join(format!("gallery-reconcile-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let db = open_database(&root.join("catalogue.sqlite")).unwrap();
+        db.execute_batch("CREATE TABLE s3_connection (id INTEGER PRIMARY KEY,bucket TEXT,prefix TEXT);
+            INSERT INTO s3_connection VALUES (1,'bucket','gallery/');
+            INSERT INTO assets(id,filename,source_path,preview_path,taken_at,collection)
+                VALUES ('already','photo.jpg','local','preview','2024-01-01','Photos'),
+                       ('new','new.jpg','local','preview','2024-01-01','Photos');
+            INSERT INTO remote_assets(asset_id,original_key,original_bytes,preview_key,preview_bytes,
+                thumbnail_key,thumbnail_bytes,manifest_version)
+                VALUES ('already','gallery/originals/already.jpg',1,'gallery/previews/already.jpg',1,
+                    'gallery/thumbnails/already.jpg',1,2);") .unwrap();
+        let status = read_status(&db, false).unwrap();
+        assert_eq!((status.total,status.synced,status.not_synced),(2,1,1));
+        enqueue(&db,"bucket/gallery/").unwrap();
+        let states: Vec<(String,String)> = db.prepare("SELECT asset_id,state FROM sync_items ORDER BY asset_id")
+            .unwrap().query_map([], |row| Ok((row.get(0)?,row.get(1)?))).unwrap()
+            .collect::<rusqlite::Result<_>>().unwrap();
+        assert_eq!(states,vec![("already".into(),"synced".into()),("new".into(),"not_synced".into())]);
+        drop(db);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -4,6 +4,7 @@
 /node_modules/
 /web/app.js
 /web/style.css
+/haxe/generated/
 /src-tauri/gen/schemas/
 /src-tauri/gen/android/app/src/main/assets/
 /src-tauri/gen/android/app/src/main/jniLibs/

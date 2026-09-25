@@ -1,0 +1,8 @@
+.settings-menu{display:grid;gap:8px;max-width:680px}
+.settings-menu button{display:flex;align-items:center;justify-content:space-between;gap:24px;width:100%;min-height:76px;padding:14px 18px;border:1px solid #3e4652;border-radius:14px;background:#292e35;color:#f2f3f5;text-align:left;cursor:pointer}
+.settings-menu button:hover{background:#343b45}
+.settings-menu button:focus-visible{outline:2px solid #8ab4f8;outline-offset:2px}
+.settings-menu button span:first-child{display:grid;gap:4px}
+.settings-menu strong{font-size:16px;font-weight:600}
+.settings-menu small{color:#aeb6c2;font-size:13px;line-height:1.35}
+.settings-menu button span:last-child{color:#aeb6c2;font-size:26px}
