@@ -4,7 +4,7 @@ Gallery is a personal photo prototype built with Haxe/Eva, Tauri 2, Rust, SQLite
 
 ## Current builds
 
-Versioned Windows and Android packages are generated in the local `dist/` directory, which is excluded from Git. The latest Windows standalone is `Gallery-0.11.1-Windows.exe`. The Windows installer and Android APK remain at 0.10.0; the new S3 layout and Takeout metadata support are currently available in the Windows standalone. See [Android instructions](docs/ANDROID.md) and [release history](docs/VERSIONS.md).
+Versioned Windows and Android packages are generated in the local `dist/` directory, which is excluded from Git. The latest Windows standalone is `Gallery-0.11.1-Windows.exe`. The Windows installer remains at 0.10.0; the Android ARM64 compact APK is now 0.11.1. See [Android instructions](docs/ANDROID.md) and [release history](docs/VERSIONS.md).
 
 Desktop Settings now manages multiple source folders, scans them in sequence, and lets you opt into thumbnail-only viewing. Settings fills the window on both desktop and mobile, with the installed version shown beside the Settings heading and category pages for each group. Collections can also be browsed by year. Import and cloud backup remain separate explicit actions.
 

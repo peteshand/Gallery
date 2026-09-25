@@ -10,16 +10,16 @@ Keep the version identical in `package.json`, `src-tauri/Cargo.toml`, and `src-t
 | --- | --- | --- |
 | Windows installer | `dist/Gallery-0.10.0-Windows-Setup.exe` | Built |
 | Windows standalone | `dist/Gallery-0.11.1-Windows.exe` | Built |
-| Android ARM64 | `dist/Gallery-0.10.0-Android-arm64-debug-compact.apk` | Built; phone acceptance pending |
+| Android ARM64 | `dist/Gallery-0.11.1-Android-arm64-debug-compact.apk` | Built; phone acceptance pending |
 | macOS Apple Silicon | `dist/Gallery-0.8.4-macOS.dmg` | Prior 0.8.4 package built and core flow accepted; current 0.11.1 code needs a new macOS build and platform retest |
 
-The compact APK is the file to transfer for manual phone installation. It has package ID `com.pshand.gallery`, version 0.10.0, and minimum Android API level 24. It is a byte-for-byte copy of the Gradle APK; the separate alias exists for the established download path. Debug signing is suitable for this prototype; a production release needs a dedicated signing key and upgrade policy. See [Android instructions](ANDROID.md) for the phone acceptance run.
+The compact APK is the file to transfer for manual phone installation. It has package ID `com.pshand.gallery`, version 0.11.1, and minimum Android API level 24. It is a byte-for-byte copy of the Gradle APK; the separate alias exists for the established download path. Debug signing is suitable for this prototype; a production release needs a dedicated signing key and upgrade policy. See [Android instructions](ANDROID.md) for the phone acceptance run.
 
-Run `npm run release:windows` for the standalone executable. The installer and Android APK currently remain at 0.10.0; rebuild them at a later version when needed. On an Apple Silicon Mac, `npm ci && npm run release:macos` builds a versioned DMG with the local Tauri CLI. The release scripts check all three version manifests.
+Run `npm run release:windows` for the standalone executable. The Windows installer remains at 0.10.0. The Android ARM64 compact APK is built at 0.11.1; phone acceptance is pending. On an Apple Silicon Mac, `npm ci && npm run release:macos` builds a versioned DMG with the local Tauri CLI. The release scripts check all three version manifests.
 
 ## Version history
 
-- `0.11.1`: prepare older import catalogues before backup reads source metadata. Stop before media uploads and ask for a folder rescan when a photo still lacks the new provenance fields. Windows standalone only.
+- `0.11.1`: prepare older import catalogues before backup reads source metadata. Stop before media uploads and ask for a folder rescan when a photo still lacks the new provenance fields. Windows standalone and Android ARM64 compact APK.
 
 - `0.11.0`: group each photo's original, preview, and thumbnail under one hash-based S3 prefix; preserve Takeout creation time, people, origin, location, and photo time along with selected root and relative path in version-3 cloud manifests. Windows standalone only. Rescan existing local folders to recover their sidecars; version-2 backups queue for upload in the new layout.
 
