@@ -162,6 +162,7 @@ class CloudLogic extends Logic {
       model.message.value = 'Cloud catalogue: ' + result.added + ' new, ' + result.updated + ' updated, ' + result.unchanged + ' unchanged'
         + (result.errors.length == 0 ? '.' : ', ' + result.errors.length + ' errors.');
       library.refreshRequested.dispatch();
+      poll();
     }).catchError(function(error) {
       model.catalogBusy.value = false;
       model.message.value = 'Could not read cloud catalogue: ' + Std.string(error);

@@ -18,10 +18,11 @@ class BackupView extends DomContainer {
     progress = element.querySelector('#sync-progress');
   }
 
-  public function present(status:SyncStatus, configured:Bool, busy:Bool):Void {
+  public function present(status:SyncStatus, configured:Bool, busy:Bool, checkingCloud:Bool):Void {
     if (status == null) return;
     syncButton.classList.toggle('hidden', !configured || status.total == 0);
-    syncButton.toggleAttribute('disabled', busy || status.cancelling);
+    syncButton.toggleAttribute('disabled', busy || status.cancelling || checkingCloud);
+    if (checkingCloud) { progress.textContent = 'Checking S3 for existing backups…'; return; }
     var message = status.synced + ' of ' + status.total + ' photos backed up';
     if (status.cancelling) message += ' · Stopping after the current upload…';
     else if (status.running) message += ' · Uploading' + (status.currentName == null ? '…' : ' ' + status.currentName);

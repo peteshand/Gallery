@@ -4,12 +4,12 @@ Gallery uses `major.minor.patch` versions. A new feature increments minor, a com
 
 Keep the version identical in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`. The npm and Cargo lockfiles follow those manifests. Every packaged filename includes the app version, and the packaging scripts refuse to replace an existing version with different content.
 
-## Current 0.10.1 prototype
+## Current 0.10.2 prototype
 
 | Platform | File | Status |
 | --- | --- | --- |
 | Windows installer | `dist/Gallery-0.10.0-Windows-Setup.exe` | Built |
-| Windows standalone | `dist/Gallery-0.10.1-Windows.exe` | Built |
+| Windows standalone | `dist/Gallery-0.10.2-Windows.exe` | Built |
 | Android ARM64 | `dist/Gallery-0.10.0-Android-arm64-debug-compact.apk` | Built; phone acceptance pending |
 | macOS | — | Build and platform tests pending |
 
@@ -18,6 +18,8 @@ The compact APK is the file to transfer for manual phone installation. It has pa
 Run `npm run release:windows` for the standalone executable. The installer and Android APK currently remain at 0.10.0; rebuild them at a later version when needed. The release scripts check all three version manifests.
 
 ## Version history
+
+- `0.10.2`: make a completed S3 catalogue listing clear backups deleted from the bucket, requeue matching local photos, remove stale cloud-only entries, and show verification progress. Windows standalone only.
 
 - `0.10.0`: show the build version in Settings, organize Settings into category pages, and browse Collections by year.
 - `0.9.1`: queue folders added during an active import and drop removed folders from pending scans.

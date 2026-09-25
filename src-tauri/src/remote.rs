@@ -119,6 +119,42 @@ fn import_manifest(db: &Connection, prefix: &str, key: &str, bytes: &[u8]) -> Re
     Ok(inserted > 0)
 }
 
+fn begin_manifest_listing(db: &Connection) -> Result<(), String> {
+    db.execute_batch("CREATE TEMP TABLE IF NOT EXISTS seen_remote_manifests (asset_id TEXT PRIMARY KEY);
+        DELETE FROM seen_remote_manifests")
+        .map_err(|error| format!("Could not start cloud catalogue refresh: {error}"))
+}
+
+fn note_manifest_listed(db: &Connection, id: &str) -> Result<(), String> {
+    db.execute("INSERT OR IGNORE INTO seen_remote_manifests(asset_id) VALUES (?1)", params![id])
+        .map_err(|error| format!("Could not record cloud catalogue entry: {error}"))?;
+    Ok(())
+}
+
+fn finish_manifest_listing(db: &Connection, config: &cloud::S3Config, etag_target: &str) -> Result<(), String> {
+    let transaction = db.unchecked_transaction()
+        .map_err(|error| format!("Could not finish cloud catalogue refresh: {error}"))?;
+    let sync_target = format!("{}/{}", config.bucket, config.prefix);
+    // The complete S3 listing is authoritative. Preserve local source photos, but
+    // queue them again when their cloud manifest has disappeared.
+    transaction.execute("UPDATE sync_items SET state='not_synced',original_done=0,preview_done=0,
+        thumbnail_done=0,manifest_done=0,synced_at=NULL,error=NULL
+        WHERE target=?1 AND state='synced' AND asset_id NOT IN
+            (SELECT asset_id FROM seen_remote_manifests)
+        AND asset_id IN (SELECT id FROM assets WHERE source_path<>'')", params![sync_target])
+        .map_err(|error| format!("Could not update removed cloud backups: {error}"))?;
+    transaction.execute("DELETE FROM remote_manifest_etags WHERE target=?1 AND asset_id NOT IN
+        (SELECT asset_id FROM seen_remote_manifests)", params![etag_target])
+        .map_err(|error| format!("Could not remove stale cloud ETags: {error}"))?;
+    transaction.execute("DELETE FROM remote_assets WHERE asset_id NOT IN
+        (SELECT asset_id FROM seen_remote_manifests)", [])
+        .map_err(|error| format!("Could not remove stale cloud photos: {error}"))?;
+    transaction.execute("DELETE FROM assets WHERE source_path='' AND id NOT IN
+        (SELECT asset_id FROM seen_remote_manifests)", [])
+        .map_err(|error| format!("Could not remove stale cloud-only photos: {error}"))?;
+    transaction.commit().map_err(|error| format!("Could not save cloud catalogue refresh: {error}"))
+}
+
 #[tauri::command]
 pub async fn refresh_remote(app: AppHandle) -> Result<RemoteRefreshResult, String> {
     tauri::async_runtime::spawn_blocking(move || tauri::async_runtime::block_on(refresh_remote_worker(app)))
@@ -132,6 +168,7 @@ async fn refresh_remote_worker(app: AppHandle) -> Result<RemoteRefreshResult, St
     let mut result = RemoteRefreshResult { scanned: 0, added: 0, updated: 0, unchanged: 0, errors: Vec::new() };
     let listing_prefix = format!("{}catalog/assets/", config.prefix);
     let target = manifest_target(&config);
+    begin_manifest_listing(&db)?;
     let mut continuation: Option<String> = None;
     loop {
         let mut request = client.list_objects_v2().bucket(&config.bucket)
@@ -146,6 +183,7 @@ async fn refresh_remote_worker(app: AppHandle) -> Result<RemoteRefreshResult, St
                 result.errors.push(format!("{key}: invalid cloud manifest key"));
                 continue;
             };
+            note_manifest_listed(&db, id)?;
             if manifest_unchanged(&db, &target, id, object.e_tag())? {
                 result.unchanged += 1;
                 continue;
@@ -170,6 +208,7 @@ async fn refresh_remote_worker(app: AppHandle) -> Result<RemoteRefreshResult, St
         continuation = page.next_continuation_token().map(str::to_string);
         if continuation.is_none() { break; }
     }
+    finish_manifest_listing(&db, &config, &target)?;
     events::replay(&db, &client, &config).await?;
     Ok(result)
 }
@@ -334,6 +373,51 @@ mod tests {
         assert!(!manifest_unchanged(&db, target, &id, None).unwrap());
         record_manifest_etag(&db, target, &id, Some("etag-2")).unwrap();
         assert!(manifest_unchanged(&db, target, &id, Some("etag-2")).unwrap());
+    }
+
+    #[test]
+    fn completed_listing_removes_deleted_backups_without_deleting_local_photos() {
+        let root = std::env::temp_dir().join(format!("gallery-prune-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let db = crate::open_database(&root.join("catalogue.sqlite")).unwrap();
+        let config = cloud::S3Config { bucket: "bucket".into(), region: "us-east-1".into(),
+            endpoint: String::new(), prefix: "gallery/".into() };
+        let etag_target = manifest_target(&config);
+        db.execute_batch("INSERT INTO assets(id,filename,source_path,preview_path,taken_at,collection)
+            VALUES ('local-gone','one.jpg','local','preview','2024-01-01','test'),
+                   ('local-kept','two.jpg','local','preview','2024-01-01','test'),
+                   ('remote-only','three.jpg','','','2024-01-01','test');
+            INSERT INTO sync_items(asset_id,target,state,original_done,preview_done,thumbnail_done,
+                manifest_done,synced_at) VALUES
+                ('local-gone','bucket/gallery/','synced',1,1,1,1,'yesterday'),
+                ('local-kept','bucket/gallery/','synced',1,1,1,1,'yesterday');
+            INSERT INTO remote_assets(asset_id,original_key,original_bytes,preview_key,preview_bytes,
+                thumbnail_key,thumbnail_bytes,manifest_version) VALUES
+                ('local-gone','a',1,'b',1,'c',1,2),
+                ('local-kept','a',1,'b',1,'c',1,2),
+                ('remote-only','a',1,'b',1,'c',1,2);") .unwrap();
+        for id in ["local-gone","local-kept","remote-only"] {
+            record_manifest_etag(&db, &etag_target, id, Some("etag")).unwrap();
+        }
+        begin_manifest_listing(&db).unwrap();
+        note_manifest_listed(&db,"local-kept").unwrap();
+        finish_manifest_listing(&db,&config,&etag_target).unwrap();
+        let local: Vec<(String,String)> = db.prepare("SELECT a.id,s.state FROM assets a JOIN sync_items s
+            ON s.asset_id=a.id ORDER BY a.id").unwrap()
+            .query_map([], |row| Ok((row.get(0)?,row.get(1)?))).unwrap()
+            .collect::<rusqlite::Result<_>>().unwrap();
+        assert_eq!(local,vec![("local-gone".into(),"not_synced".into()),
+            ("local-kept".into(),"synced".into())]);
+        let remote_count: i64 = db.query_row("SELECT COUNT(*) FROM remote_assets",[],|row|row.get(0)).unwrap();
+        let etag_count: i64 = db.query_row("SELECT COUNT(*) FROM remote_manifest_etags",[],|row|row.get(0)).unwrap();
+        assert_eq!((remote_count,etag_count),(1,1));
+        begin_manifest_listing(&db).unwrap();
+        finish_manifest_listing(&db,&config,&etag_target).unwrap();
+        let still_local: i64 = db.query_row("SELECT COUNT(*) FROM assets",[],|row|row.get(0)).unwrap();
+        let still_synced: i64 = db.query_row("SELECT COUNT(*) FROM sync_items WHERE state='synced'",[],|row|row.get(0)).unwrap();
+        assert_eq!((still_local,still_synced),(2,0));
+        drop(db);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -10,12 +10,13 @@ class BackupViewMediator extends Mediator {
     cloud.connection.add(function(_) present());
     cloud.progress.add(function(_) present());
     cloud.busy.add(function(_) present());
+    cloud.catalogBusy.add(function(_) present());
     view.syncButton.addEventListener('click', function(_) cloud.syncRequested.dispatch());
     present();
   }
 
   function present():Void {
     var connection = cloud.connection.value;
-    view.present(cloud.progress.value, connection != null && connection.configured, cloud.busy.value);
+    view.present(cloud.progress.value, connection != null && connection.configured, cloud.busy.value, cloud.catalogBusy.value);
   }
 }
