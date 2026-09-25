@@ -1,6 +1,6 @@
 # Android prototype
 
-The versioned ARM64 debug APKs are in `dist/`. For manual transfer, use `Gallery-0.8.3-Android-arm64-debug-compact.apk`. It requires Android 7.0 or newer (API 24) and is signed with the Android debug key. Version 0.8.3 organises phone folders in Collections and refines the grid. `dist/Gallery-0.8.3-SHA256SUMS.txt` records its SHA-256 hash. The desktop folder importer remains hidden on Android. Do not use the 0.7.1 or 0.7.2 compact APKs: they failed installation on the test phone.
+The versioned ARM64 debug APKs are in `dist/`. For manual transfer, use `Gallery-0.9.1-Android-arm64-debug-compact.apk`. It requires Android 7.0 or newer (API 24) and is signed with the Android debug key. Version 0.9.1 retains phone folders in Collections and adds full-window Settings and opt-in thumbnail-only viewing. `dist/Gallery-0.9.1-SHA256SUMS.txt` records its SHA-256 hash. The desktop folder importer remains hidden on Android. Do not use the 0.7.1 or 0.7.2 compact APKs: they failed installation on the test phone.
 
 ## Build on this Windows workspace
 
@@ -8,7 +8,7 @@ The versioned ARM64 debug APKs are in `dist/`. For manual transfer, use `Gallery
 
 Gallery's `MainActivity` initializes the native keyring context before Tauri starts the WebView. Keep that call and `io/crates/keyring/Keyring.kt` when regenerating the Android project. Compilation verifies the JNI symbol and Kotlin binding; credential saving and retrieval still need the phone acceptance run.
 
-If the phone says the APK cannot be installed, confirm the downloaded file is the **0.8.3 compact** build, allow the file manager under **Settings → Apps → Special app access → Install unknown apps**, and check whether Gallery is already installed. Do not uninstall an existing Gallery until its local settings have been recorded. For an exact Android failure code, connect the phone to a computer with USB debugging enabled and run `adb install -r Gallery-0.8.3-Android-arm64-debug-compact.apk` from the directory containing the APK. Send the `INSTALL_FAILED_*` result without any credentials.
+If the phone says the APK cannot be installed, confirm the downloaded file is the **0.9.1 compact** build, allow the file manager under **Settings → Apps → Special app access → Install unknown apps**, and check whether Gallery is already installed. Do not uninstall an existing Gallery until its local settings have been recorded. For an exact Android failure code, connect the phone to a computer with USB debugging enabled and run `adb install -r Gallery-0.9.1-Android-arm64-debug-compact.apk` from the directory containing the APK. Send the `INSTALL_FAILED_*` result without any credentials.
 
 ## Phone acceptance run
 
@@ -22,4 +22,4 @@ If the phone says the APK cannot be installed, confirm the downloaded file is th
 8. Change a favourite on the phone, refresh cloud photos, then refresh the Windows gallery and confirm the change appears. Change it back on Windows and refresh the phone. Repeat once with one device briefly offline.
 9. Rotate or remove the phone's credentials and confirm Gallery reports the connection state without exposing the secret. Capture any crash with `adb logcat` and note the photo ID and action, without including credentials or private image data.
 
-Version 0.7.6 was installed on the phone and the user confirmed S3 access and cloud photo loading. Version 0.8.3 camera-roll discovery and backup need phone acceptance. The remaining checks for offline cache, credential persistence, and favourite convergence are also still required before calling Android delivery verified.
+Version 0.7.6 was installed on the phone and the user confirmed S3 access and cloud photo loading. Version 0.9.1 camera-roll discovery and backup need phone acceptance. The remaining checks for offline cache, credential persistence, and favourite convergence are also still required before calling Android delivery verified.

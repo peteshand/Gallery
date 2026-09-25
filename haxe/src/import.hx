@@ -64,6 +64,8 @@ import gallery.view.settings.SettingsView;
 import gallery.view.settings.SettingsViewMediator;
 import gallery.view.settings.phone.PhoneSourceView;
 import gallery.view.settings.phone.PhoneSourceViewMediator;
+import gallery.view.settings.source.SourceFoldersView;
+import gallery.view.settings.source.SourceFoldersViewMediator;
 import gallery.view.viewer.ViewerView;
 import gallery.view.viewer.ViewerViewMediator;
 

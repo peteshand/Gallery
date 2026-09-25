@@ -18,12 +18,13 @@ class ViewerViewMediator extends Mediator {
     gallery.activePhotoId.add(function(_) {
       view.resetPhotoMotion();
       var asset = current();
-      if (asset != null && asset.mediaUrl == '') media.requested.dispatch({id:asset.id, variant:'preview'});
+      if (asset != null && asset.mediaUrl == '') media.requested.dispatch({id:asset.id, variant:media.thumbnailOnly.value ? 'thumbnail' : 'preview'});
       present();
     });
     gallery.detailsOpen.add(function(_) present());
     library.assets.add(function(_) present());
     media.paths.add(function(_) present());
+    media.thumbnailOnly.add(function(_) present());
     media.exportMessage.add(function(_) present());
     cloud.connection.add(function(_) present());
     cloud.progress.add(function(_) present());
@@ -87,9 +88,9 @@ class ViewerViewMediator extends Mediator {
     var backedUp = asset != null && asset.syncState == 'synced';
     var url = asset == null ? '' : asset.mediaUrl;
     if (asset != null && url == '') {
-      var preview = media.paths.value.get(asset.id + ':preview');
+      var preview = media.paths.value.get(asset.id + (media.thumbnailOnly.value ? ':thumbnail' : ':preview'));
       if (preview == null) {
-        media.requested.dispatch({id:asset.id, variant:'preview'});
+        media.requested.dispatch({id:asset.id, variant:media.thumbnailOnly.value ? 'thumbnail' : 'preview'});
         preview = media.paths.value.get(asset.id + ':thumbnail');
       }
       if (preview != null) url = preview;
@@ -101,7 +102,7 @@ class ViewerViewMediator extends Mediator {
 
   function displayUrl(asset:Asset):String {
     if (asset.mediaUrl != '') return asset.mediaUrl;
-    var preview = media.paths.value.get(asset.id + ':preview');
+    var preview = media.thumbnailOnly.value ? null : media.paths.value.get(asset.id + ':preview');
     if (preview != null) return preview;
     var thumbnail = media.paths.value.get(asset.id + ':thumbnail');
     if (thumbnail == null) { media.requested.dispatch({id:asset.id, variant:'thumbnail'}); return ''; }

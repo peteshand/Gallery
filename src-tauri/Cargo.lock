@@ -1464,7 +1464,7 @@ dependencies = [
 
 [[package]]
 name = "gallery"
-version = "0.8.3"
+version = "0.9.1"
 dependencies = [
  "android-native-keyring-store",
  "apple-native-keyring-store",

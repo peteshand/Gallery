@@ -3,13 +3,18 @@ package gallery.logic;
 
 class LibraryLogic extends Logic {
   @inject public var model:LibraryModel;
+  @inject public var gallery:GalleryModel;
   @inject public var service:IGalleryService;
   var importing:Bool;
+  var importQueue:Array<String>;
   var importTimer:haxe.Timer;
 
   override public function initialize():Void {
     importing = false;
+    importQueue = [];
     model.importRequested.add(importSource);
+    model.importSourcesRequested.add(importSources);
+    gallery.removeSourceRequested.add(removeQueuedSource);
     model.favoriteRequested.add(toggleFavorite);
     model.refreshRequested.add(refresh);
     model.cancelImportRequested.add(cancelImport);
@@ -19,6 +24,8 @@ class LibraryLogic extends Logic {
 
   override public function dispose():Void {
     model.importRequested.remove(importSource);
+    model.importSourcesRequested.remove(importSources);
+    gallery.removeSourceRequested.remove(removeQueuedSource);
     model.favoriteRequested.remove(toggleFavorite);
     model.refreshRequested.remove(refresh);
     model.cancelImportRequested.remove(cancelImport);
@@ -42,8 +49,21 @@ class LibraryLogic extends Logic {
     });
   }
 
+  function importSources(paths:Array<String>):Void {
+    if (paths.length == 0) return;
+    for (path in paths) if (importQueue.indexOf(path) < 0) importQueue.push(path);
+    if (!importing) importNext();
+  }
+  function removeQueuedSource(path:String):Void importQueue = importQueue.filter(function(queued) return queued != path);
+  function importNext():Void {
+    if (importQueue.length == 0) return;
+    importSource(importQueue.shift());
+  }
   public function importSource(?source:String):Void {
-    if (importing) return;
+    if (importing) {
+      if (source != null && importQueue.indexOf(source) < 0) importQueue.push(source);
+      return;
+    }
     importing = true;
     model.loading.value = true;
     model.error.value = null;
@@ -61,12 +81,14 @@ class LibraryLogic extends Logic {
       refreshImportErrors();
       refresh();
       importing = false;
+      importNext();
     }).catchError(function(error) {
       importTimer.stop();
       model.importProgress.value = null;
       model.error.value = Std.string(error);
       model.loading.value = false;
       importing = false;
+      importNext();
     });
   }
 
@@ -76,9 +98,12 @@ class LibraryLogic extends Logic {
       model.status.value = 'Importing ' + progress.processed + ' photos · ' + progress.current;
   }).catchError(function(_) {});
 
-  function cancelImport():Void service.cancelImport().then(function(_) {
+  function cancelImport():Void {
+    importQueue = [];
+    service.cancelImport().then(function(_) {
     model.status.value = 'Stopping import after the current photo…';
   }).catchError(function(error) model.error.value = Std.string(error));
+  }
 
   function refreshImportErrors():Void service.listImportErrors().then(function(errors) {
     model.importErrors.value = errors;

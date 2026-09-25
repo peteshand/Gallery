@@ -14,6 +14,8 @@ class SettingsView extends DomContainer {
   public var cacheSave(default, null):Element;
   public var backupView(default, null):BackupView;
   public var phoneView(default, null):PhoneSourceView;
+  public var sourceFoldersView(default, null):SourceFoldersView;
+  public var thumbnailOnlyInput(default, null):InputElement;
   var sourceLabel:Element;
   var sourceErrors:Element;
   var cloudState:Element;
@@ -25,15 +27,16 @@ class SettingsView extends DomContainer {
     super('settings hidden', Browser.document.createElement('div'));
     id = 'settings';
     element.setAttribute('role', 'dialog');
+    element.setAttribute("aria-modal", "true");
     element.setAttribute('aria-label', 'Settings');
   }
 
   override public function initialize():Void {
     element.innerHTML = '<div class="settings-card"><div class="settings-title"><h2>Settings</h2><button id="settings-close" aria-label="Close settings">×</button></div>'
-      + '<h3>Library</h3><p id="source-path"></p><button id="source-choose" class="secondary-button">Choose photo folder</button>'
+      + '<section id="desktop-sources"><div id="source-folders-host"></div><p id="source-path"></p><button id="source-choose" class="secondary-button" type="button">Add photo folder</button>'
       + '<button id="source-cancel" class="secondary-button hidden" type="button">Cancel import</button><p id="source-progress" role="status"></p>'
       + '<details id="source-errors" class="hidden"><summary>Import errors</summary><ul id="source-error-list"></ul></details>'
-      + '<p>The source files are read only. The catalogue is stored separately.</p><div id="phone-source-host"></div>'
+      + '<p>The source files are read only. The catalogue is stored separately.</p></section><div id="phone-source-host"></div>'
       + '<h3>Cloud storage</h3><div id="cloud-native"><p id="cloud-state" role="status">Checking local connection…</p><form id="cloud-form" autocomplete="off">'
       + '<label for="cloud-bucket">Bucket</label><input id="cloud-bucket" required spellcheck="false" autocomplete="off" placeholder="my-gallery-bucket">'
       + '<label for="cloud-region">Region</label><input id="cloud-region" required spellcheck="false" autocomplete="off" placeholder="ap-southeast-2">'
@@ -48,6 +51,7 @@ class SettingsView extends DomContainer {
     var cloudExtras = Browser.document.createElement('section');
     cloudExtras.className = 'cloud-extras';
     cloudExtras.innerHTML = '<h3>Cloud library</h3><p>Read the photo catalogue from S3 onto this device. Images download as you browse.</p>'
+      + '<label class="setting-toggle" for="thumbnail-only"><input id="thumbnail-only" type="checkbox"><span><strong>Only download thumbnails</strong><small>Use smaller images when viewing cloud photos. Originals remain available on request.</small></span></label>'
       + '<button id="cloud-refresh" class="secondary-button" type="button">Refresh cloud photos</button>'
       + '<h3>Photo cache</h3><p id="cache-usage">Checking cache…</p>'
       + '<label for="cache-limit">Maximum cache size (GB)</label><input id="cache-limit" type="number" min="0.064" max="50" step="0.1" value="2">'
@@ -65,6 +69,7 @@ class SettingsView extends DomContainer {
     cloudRemove = element.querySelector('#cloud-remove');
     cloudRefresh = element.querySelector('#cloud-refresh');
     cacheSave = element.querySelector('#cache-save');
+    thumbnailOnlyInput = cast element.querySelector('#thumbnail-only');
     cloudState = element.querySelector('#cloud-state');
     cloudMessage = element.querySelector('#cloud-message');
     nativeArea = element.querySelector('#cloud-native');
@@ -72,6 +77,9 @@ class SettingsView extends DomContainer {
     backupView = new BackupView();
     addChild(backupView);
     element.querySelector('#backup-host').appendChild(backupView.element);
+    sourceFoldersView = new SourceFoldersView();
+    addChild(sourceFoldersView);
+    element.querySelector('#source-folders-host').appendChild(sourceFoldersView.element);
     phoneView = new PhoneSourceView();
     addChild(phoneView);
     element.querySelector('#phone-source-host').appendChild(phoneView.element);
@@ -82,8 +90,11 @@ class SettingsView extends DomContainer {
     nativeArea.classList.toggle('hidden', !enabled);
     browserArea.classList.toggle('hidden', enabled);
   }
-  public function showChoose(enabled:Bool):Void sourceChoose.classList.toggle('hidden', !enabled);
-  public function showSource(path:String):Void sourceLabel.textContent = path == null ? 'No import source selected' : 'Import source: ' + path;
+  public function showChoose(enabled:Bool):Void {
+    sourceChoose.classList.toggle("hidden", !enabled);
+    element.querySelector("#desktop-sources").classList.toggle("hidden", !enabled);
+  }
+  public function showSource(path:String):Void sourceLabel.textContent = path == null ? 'Choose a folder to begin importing.' : '';
   public function showImportErrors(errors:Array<ImportError>):Void {
     sourceErrors.classList.toggle('hidden', errors.length == 0);
     sourceErrors.querySelector('summary').textContent = errors.length + ' recent import error' + (errors.length == 1 ? '' : 's');

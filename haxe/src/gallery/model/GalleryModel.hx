@@ -11,6 +11,9 @@ class GalleryModel {
   public var detailsOpen = new Notifier<Bool>(false);
   public var collection = new Notifier<String>(null);
   public var sourcePath = new Notifier<String>(null);
+  public var sourcePaths = new Notifier<Array<String>>([]);
+  public var removeSourceRequested = new Signal1<String>();
+  public var importAllSourcesRequested = new Signal();
   public var canChooseSource = new Notifier<Bool>(false);
   public var cloudOnlyDevice = new Notifier<Bool>(false);
   public var gridDensity = new Notifier<Int>(0);

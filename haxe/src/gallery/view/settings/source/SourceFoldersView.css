@@ -1,0 +1,10 @@
+.source-folders{padding:4px 0 18px;border-bottom:1px solid #343a43}
+.source-folders-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.source-folders-head h3{margin:12px 0}
+.source-folders p{margin:8px 0 14px}
+#source-folders-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.source-folder{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:12px;background:#292e35}
+.source-folder span{min-width:0;overflow-wrap:anywhere;font-size:14px}
+.source-folder-remove{flex:none}
+.source-folders-empty{padding:15px;border:1px dashed #555e6b;border-radius:12px;color:#b7bdc8}
+.source-folders-note{font-size:12px}
