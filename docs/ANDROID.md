@@ -23,4 +23,3 @@ If the phone says the APK cannot be installed, confirm the downloaded file is th
 9. Rotate or remove the phone's credentials and confirm Gallery reports the connection state without exposing the secret. Capture any crash with `adb logcat` and note the photo ID and action, without including credentials or private image data.
 
 Version 0.7.6 was installed on the phone and the user confirmed S3 access and cloud photo loading. Version 0.11.1 camera-roll discovery and backup need phone acceptance. The remaining checks for offline cache, credential persistence, and favourite convergence are also still required before calling Android delivery verified.
-
