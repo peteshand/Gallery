@@ -1,14 +1,15 @@
 import { spawn } from 'node:child_process';
+import { browserExecutable, browserProfile } from './headless-browser.mjs';
 
 const root = process.cwd();
-const browser = process.env.GALLERY_BROWSER_BIN || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const browser = browserExecutable();
 const port = 43193;
 const debugPort = 49247;
 const server = spawn(process.execPath, ['server.mjs'], {
   cwd: root, windowsHide: true, env: { ...process.env, PORT: String(port), GALLERY_DB: ':memory:' }, stdio: 'ignore'
 });
 const chrome = spawn(browser, ['--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
-  `--remote-debugging-port=${debugPort}`, `--user-data-dir=${root}\\.tools\\android-cdp`, 'about:blank'],
+  `--remote-debugging-port=${debugPort}`, `--user-data-dir=${browserProfile(root, 'android-cdp')}`, 'about:blank'],
   { cwd: root, windowsHide: true, stdio: 'ignore' });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function retry(action) {
